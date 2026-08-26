@@ -5,6 +5,7 @@
   "private": true,
   "type": "commonjs",
   "description": "LX-DSH — native desktop client for DeepSeek Harness (dsh web)",
+  "author": "Laoxiao7274",
   "main": "dist-electron/main.cjs",
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -44,7 +45,8 @@
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": true,
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": true,
