@@ -1,0 +1,240 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens mirrored from the live dsh web UI (the --dsw-* runtime palette
+ * read off the rendered web UI). Light is the default and matches the web UI's
+ * current theme exactly; .dark is a derived dark palette for the chrome toggle.
+ * Font stack is the web UI's own system stack.
+ */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, "PingFang SC", "Microsoft YaHei", monospace;
+  --color-brand-1: var(--brand-1);
+  --color-brand-2: var(--brand-2);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-code-bg: var(--code-bg);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+/* Light (default) — mirrors the dsh web UI's light palette (--dsw-alias-*). */
+:root {
+  --background: #ffffff;            /* --dsw-alias-bg-base */
+  --foreground: #0f1115;            /* --dsw-alias-label-primary */
+  --card: #ffffff;                  /* --dsw-alias-bg-layer-1 */
+  --card-foreground: #0f1115;
+  --popover: #ffffff;               /* --dsw-specific-menu */
+  --popover-foreground: #0f1115;
+  --primary: #0f1115;               /* --dsw-alias-button-primary-fill */
+  --primary-foreground: #ffffff;    /* --dsw-alias-label-primary-foreground */
+  --secondary: #f5f6f7;             /* --dsw-specific-selector */
+  --secondary-foreground: #61666b;  /* --dsw-alias-label-secondary */
+  --muted: #f9fafb;                 /* --dsw-specific-sidebar-fill */
+  --muted-foreground: #61666b;      /* --dsw-alias-label-secondary */
+  --accent: #ebeef2;               /* --dsw-specific-sidebar-nav-item-active */
+  --accent-foreground: #0f1115;
+  --destructive: #f25a5a;           /* --dsw-alias-state-error-secondary */
+  --border: rgba(0, 0, 0, 0.10);   /* --dsw-alias-border-l2 */
+  --input: rgba(0, 0, 0, 0.10);
+  --ring: #4176e6;                  /* --dsw-alias-state-business-primary */
+  --chart-1: #4176e6;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #f25a5a;
+  --chart-5: #67aefe;
+  --radius: 0.5rem;
+  --brand-1: #4176e6;               /* --dsw-static-deepseek-500 / business-primary */
+  --brand-2: #4176e6;
+  --ok: #22c55e;                    /* --dsw-alias-state-success-primary */
+  --warn: #f59e0b;                  /* --dsw-alias-state-warn-primary */
+  --err: #f25a5a;                   /* --dsw-alias-state-error-secondary */
+  --surface-1: #ffffff;             /* --dsw-alias-bg-layer-1 */
+  --surface-2: #f9fafb;            /* --dsw-specific-sidebar-fill */
+  --surface-3: #f5f6f7;            /* --dsw-specific-selector */
+  --sidebar: #f9fafb;              /* --dsw-specific-sidebar-fill */
+  --sidebar-foreground: #61666b;    /* --dsw-alias-label-secondary */
+  --sidebar-primary: #0f1115;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ebeef2;       /* --dsw-specific-sidebar-nav-item-active */
+  --sidebar-accent-foreground: #0f1115;
+  --sidebar-border: rgba(0, 0, 0, 0.06); /* --dsw-alias-border-l1 */
+  --sidebar-ring: #4176e6;
+  --code-bg: #f9fafb;              /* --dsw-alias-markdown-code-block-banner */
+}
+
+/* Dark — derived dark chrome palette (the web UI currently ships light; this
+ * keeps the titlebar toggle usable without clashing when the web UI is light). */
+.dark {
+  --background: #0f1115;
+  --foreground: #ffffff;
+  --card: #1a1a1c;
+  --card-foreground: #ffffff;
+  --popover: #2c2c2e;              /* --dsw-alias-tooltip-bg */
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #0f1115;
+  --secondary: #1f1f22;
+  --secondary-foreground: #adb2b8;  /* --dsw-alias-label-caption */
+  --muted: #1a1a1c;
+  --muted-foreground: #81858c;     /* --dsw-alias-label-tertiary */
+  --accent: #2a2a2e;
+  --accent-foreground: #ffffff;
+  --destructive: #f25a5a;
+  --border: rgba(255, 255, 255, 0.10);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #4176e6;
+  --chart-1: #4176e6;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #f25a5a;
+  --chart-5: #67aefe;
+  --radius: 0.5rem;
+  --brand-1: #4176e6;
+  --brand-2: #4176e6;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --err: #f25a5a;
+  --surface-1: #1a1a1c;
+  --surface-2: #0f1115;
+  --surface-3: #1f1f22;
+  --sidebar: #0c0d0f;
+  --sidebar-foreground: #adb2b8;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0f1115;
+  --sidebar-accent: #1f1f22;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: #4176e6;
+  --code-bg: #0c0d0f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    overflow: hidden;
+    font-size: 14px;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--brand-1) 22%, transparent);
+  }
+}
+
+/* ---- LX-DSH chrome ---- */
+/* Window dragging is pointer-event + IPC driven (see Titlebar.tsx): a CSS
+ * -webkit-app-region drag layer inside the WebContentsView overlay swallows
+ * button clicks regardless of stacking, so no element declares app-region. */
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+@keyframes lx-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+.dot-pulse {
+  animation: lx-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes lx-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.stream-cursor {
+  animation: lx-blink 0.9s steps(1) infinite;
+}
+
+@keyframes lx-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-1) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%;
+  animation: lx-shimmer 1.4s linear infinite;
+}

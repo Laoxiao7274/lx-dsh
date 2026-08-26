@@ -1,0 +1,11 @@
+node_modules/
+dist-electron/
+dist/
+release/
+vendor/
+*.log
+shot*.png
+*.probe.log
+tb_*.png
+.update-base.json
+dist-nsis-log.txt
