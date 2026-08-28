@@ -29,6 +29,10 @@ export interface UpdateStatus {
   version: string | null;
   progress: number | null; // 0-100 download progress
   error: string | null;
+  /** Release notes from the server's latest.json (may be absent). */
+  notes: string | null;
+  /** The currently installed version, for the update dialog's comparison row. */
+  currentVersion: string;
 }
 
 // What the server returns from /update/win/latest.json
@@ -41,6 +45,8 @@ interface UpdateMeta {
   sha512: string;
   size: number;
   fullFallback: boolean;
+  /** Optional release-notes text the update dialog renders as the changelog. */
+  notes?: string;
 }
 
 // What's inside the zip's update.json
@@ -77,6 +83,8 @@ function currentStatus(): UpdateStatus {
     version: downloadedVersion ?? pendingMeta?.version ?? null,
     progress: downloadProgress,
     error: lastError,
+    notes: pendingMeta?.notes ?? null,
+    currentVersion: app.getVersion(),
   };
 }
 
@@ -260,6 +268,23 @@ export function initUpdater(win: BrowserWindow | null): void {
   // update button doesn't throw "No handler registered for 'updater:status'".
   if (process.env.LX_DSH_DEV_URL || process.env.LX_DSH_DEV_INSTANCE) {
     log('updater: skipped in dev mode');
+    // LX_DSH_FAKE_UPDATE=1 fabricates an available update so the header
+    // button and its dialog can be developed and inspected without a server.
+    if (process.env.LX_DSH_FAKE_UPDATE) {
+      log('updater: LX_DSH_FAKE_UPDATE set — fabricating an available update');
+      updateAvailable = true;
+      pendingMeta = {
+        version: '9.9.9',
+        baseVersion: null,
+        channel: 'stable',
+        date: new Date().toISOString(),
+        url: '',
+        sha512: '',
+        size: 0,
+        fullFallback: true,
+        notes: '• 演示更新日志第一行\n• 演示更新日志第二行\n• 修复了会话损坏后的自动修复',
+      };
+    }
     ipcMain.handle('updater:check', () => currentStatus());
     ipcMain.handle('updater:install', () => false);
     ipcMain.handle('updater:status', () => currentStatus());

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('__DSH_HOST__', DSH_HOST_ENV);
 
 contextBridge.exposeInMainWorld('lx', {
   api,
+  appVersion: (): Promise<string> => ipcRenderer.invoke('lx:appVersion'),
   backend: {
     info: (): Promise<any> => ipcRenderer.invoke('lx:backend'),
     restart: (): void => {
@@ -66,9 +67,6 @@ contextBridge.exposeInMainWorld('lx', {
     list: (): Promise<any[]> => ipcRenderer.invoke('lx:plugins:list'),
     install: (name: string): Promise<any> => ipcRenderer.invoke('lx:plugins:install', name),
     uninstall: (name: string): Promise<any> => ipcRenderer.invoke('lx:plugins:uninstall', name),
-  },
-  debug: {
-    onOpen: (cb: (id: string) => void): (() => void) => on('debug:open', cb),
   },
   updater: {
     check: (): Promise<any> => ipcRenderer.invoke('updater:check'),

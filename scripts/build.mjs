@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { rmSync, mkdirSync } from 'node:fs';
 import esbuild from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -14,15 +15,25 @@ execFileSync(
 );
 
 // 2) main + preload (esbuild) -> dist-electron
+// Clean the outdir first: esbuild writes FLAT (main.cjs + index.cjs), but stale
+// subdirs from an older dir-preserving layout (dist-electron/electron/…,
+// dist-electron/preload/…) would otherwise survive on disk and get bundled
+// into app.asar by electron-builder's "dist-electron/**" glob — dead duplicates.
+const outDir = join(root, 'dist-electron');
+rmSync(outDir, { recursive: true, force: true });
+mkdirSync(outDir, { recursive: true });
+
 const common = {
   bundle: true,
   platform: 'node',
   target: 'node22',
   format: 'cjs',
-  outdir: join(root, 'dist-electron'),
+  outdir: outDir,
   outExtension: { '.js': '.cjs' },
   external: ['electron'],
-  sourcemap: true,
+  // Production build: no sourcemaps (a 1MB+ .map would otherwise be packed
+  // into app.asar). The dev loop (scripts/dev.mjs) keeps sourcemap: true.
+  sourcemap: false,
   logLevel: 'warning',
 };
 // Named entry points so output lands FLAT (dist-electron/main.cjs + index.cjs) —

@@ -1,5 +1,6 @@
-// make-portable.mjs — After electron-builder --win --dir + post-vendor.mjs,
-// the win-unpacked directory is complete. Create a portable exe by:
+// make-portable.mjs — After electron-builder --win --dir (with assemble-dist's
+// dsh.zip in resources), the win-unpacked directory is complete. Create a
+// portable exe by:
 // 1. Running electron-builder --win portable (from source, not --prepackaged)
 //    which succeeds but strips node_modules from extraResources
 // 2. Then we can't fix it post-hoc because the exe is already sealed.
@@ -20,8 +21,8 @@ if (!existsSync(join(src, 'LX-DSH.exe'))) {
   console.error('[make-portable] dist/win-unpacked/LX-DSH.exe missing');
   process.exit(1);
 }
-if (!existsSync(join(src, 'resources', 'vendor', 'dsh', 'node_modules'))) {
-  console.error('[make-portable] vendor/dsh/node_modules missing — run post-vendor first');
+if (!existsSync(join(src, 'resources', 'dsh.zip'))) {
+  console.error('[make-portable] resources/dsh.zip missing — run npm run assemble before electron-builder');
   process.exit(1);
 }
 

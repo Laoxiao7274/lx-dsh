@@ -68,11 +68,17 @@ export function Sidebar() {
   const [renaming, setRenaming] = useState<SessionSummary | null>(null);
   const [renameVal, setRenameVal] = useState('');
 
+  // Index sessionId → workspace once per render instead of scanning every
+  // workspace's sessionIds array per session (O(W·S) → O(sum(sessionIds))).
+  const wsBySession = new Map<string, WorkspaceView>();
+  for (const w of workspaces) {
+    for (const sid of w.sessionIds) wsBySession.set(sid, w);
+  }
   const visible = sessions
     .filter((s) => !s.blank && s.origin !== 'subagent' && !archived.includes(s.sessionId))
     .sort((a, b) => b.updatedAt - a.updatedAt);
   const ownerOf = (s: SessionSummary): WorkspaceView | null =>
-    workspaces.find((w) => w.sessionIds.includes(s.sessionId)) ??
+    wsBySession.get(s.sessionId) ??
     workspaces.find((w) => (s.cwd ?? '').startsWith(w.path)) ??
     null;
   const byWorkspace = new Map<string, SessionSummary[]>();
@@ -238,12 +244,7 @@ export function Sidebar() {
         <span className="ml-auto font-mono text-[9px] text-muted-foreground/60">{backend.dshVersion ?? ''}</span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground" onClick={() => {
-              // The plugin tab is opened from the titlebar; this sidebar button
-              // is a secondary entry point that dispatches a custom event the
-              // App root listens for.
-              window.dispatchEvent(new CustomEvent('lx:open-plugins'));
-            }}>
+            <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground" onClick={() => void window.lx.plugins.open()}>
               <Settings className="size-3.5" />
             </Button>
           </TooltipTrigger>

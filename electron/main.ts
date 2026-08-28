@@ -1,35 +1,29 @@
-// LX-DSH main process (M1): the real dsh web UI is loaded directly into the main
+// LX-DSH main process: the dsh web UI is loaded directly into the main
 // webContents (so its dropdowns / popovers / dialogs are never clipped by a
-// child-view rectangle). The custom titlebar is an overlay WebContentsView that
-// floats on top (drag region, telemetry, window controls). While booting the
-// LX-DSH startup shell shows underneath that overlay.
-import { app, BrowserWindow, Menu, Tray, WebContentsView, clipboard, dialog, globalShortcut, ipcMain, nativeImage, shell } from 'electron';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+// child-view rectangle). There is no titlebar overlay — the window is frameless
+// and its chrome (drag region, window controls) lives inside the web UI's
+// Session Header (ui-lx-shell). While booting the LX-DSH startup shell shows.
+import { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, shell } from 'electron';
+import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DshBackend } from './backend.js';
+import { ensureDshRuntime } from './dsh-runtime.js';
 import { initUpdater } from './updater.js';
 import { log } from './log.js';
-import { TITLEBAR_H } from '../shared/chrome.js';
 
-// Vendored dsh lives at <app>/vendor/dsh in dev, but in a packaged build it is
-// copied to resources/vendor/dsh by post-vendor.mjs (outside the asar — a
-// spawned plain-node dsh process can't read inside asar), so resolve via
-// process.resourcesPath when packaged.
-// LX_DSH_ROOT overrides to point at a locally-built dsh (e.g. a deepseek-harness
-// monorepo apps/cli with a compiled lib/) for the "build-from-source" dev loop.
-const vendorRoot = process.env.LX_DSH_ROOT
-  ?? (app.isPackaged
-    ? join(process.resourcesPath, 'vendor', 'dsh')
-    : join(__dirname, '..', 'vendor', 'dsh'));
-const backend = new DshBackend(vendorRoot);
+// The dsh runtime is built from the deepseek-harness source checkout: in dev
+// the backend runs the workspace build (deepseek-harness/apps/cli) directly;
+// in a packaged build the runtime ships as resources/dsh.zip and is extracted
+// to %APPDATA%/LX-DSH/dsh on first launch (electron/dsh-runtime.ts). The
+// resolved root is handed to the backend after ensureDshRuntime() completes.
+const backend = new DshBackend();
 let win: BrowserWindow | null = null;
 let webview: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
 
-let titlebarView: WebContentsView | null = null;
 let webUILoadedUrl: string | null = null;
 // what the main webContents currently shows, so we never abort an in-flight load
 // with a competing loadFile/loadURL ('startup' | 'webui' | null = unknown).
@@ -42,9 +36,9 @@ if (!process.env.LX_DSH_ENABLE_GPU) {
 }
 
 // Optional CDP for inspection (dev): set LX_DSH_CDP_PORT=<port> to expose the
-// Chrome DevTools Protocol on that port. scripts/cdp-capture.mjs uses it to
-// screenshot each webContents (main window + titlebar overlay) without being
-// affected by window occlusion / hide-to-tray / software-render compositing.
+// Chrome DevTools Protocol on that port, so external tooling can screenshot /
+// inspect webContents without being affected by window occlusion / hide-to-tray
+// / software-render compositing.
 if (process.env.LX_DSH_CDP_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.LX_DSH_CDP_PORT);
 }
@@ -60,64 +54,24 @@ function loadShell(wc: Electron.WebContents): void {
     : wc.loadFile(join(__dirname, '..', 'ui', 'dist', 'index.html')).catch((e: unknown) => log('shell loadFile error: ' + String(e))));
 }
 
-// The titlebar overlay view: a thin WebContentsView on top of the main webContents
-// hosting the LX-DSH React titlebar (drag region, telemetry, window controls).
-function ensureTitlebarView(): WebContentsView | null {
-  if (!win || win.isDestroyed()) return null;
-  if (titlebarView) return titlebarView;
-  titlebarView = new WebContentsView({
-    webPreferences: {
-      preload: join(__dirname, 'index.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  win.contentView.addChildView(titlebarView);
-  titlebarView.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) void shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  loadShell(titlebarView.webContents);
-  layoutTitlebarView();
-  return titlebarView;
-}
-
-function layoutTitlebarView(): void {
-  if (!titlebarView || !win || win.isDestroyed()) return;
-  const [w] = win.getContentSize();
-  titlebarView.setBounds({ x: 0, y: 0, width: w, height: TITLEBAR_H });
-}
-
 function showWebUI(baseUrl: string): void {
   if (!win || win.isDestroyed()) return;
-  // The hosted web UI is meant to read window.__DSH_HOST__ (declared by the
-  // preload) and apply the titlebar inset itself via --dsh-app-inset-*. The
-  // vendored dsh web frontend has not wired up that boot contract yet, so until
-  // it does we push #root down by TITLEBAR_H from the shell side after load.
+  // The hosted web UI fills the window: there is no titlebar overlay, so no
+  // inset applies — the shell's window chrome lives inside the web UI itself
+  // (ui-lx-shell's Session Header chrome + drag region).
   if (webUILoadedUrl === baseUrl) return; // already showing — never abort an in-flight load
   webUILoadedUrl = baseUrl;
   showing = 'webui';
   log('webui loadURL: ' + baseUrl);
   const wc = win.webContents;
-  // The hosted web UI consumes --dsh-app-inset-top itself: its base CSS sets
-  // body { padding-top: var(--dsh-app-inset-top, 0px) } and fixed/overlay
-  // surfaces (modals, toasts, onboarding) offset from the same variable. We
-  // only need to declare the variable; the web UI handles all layout.
-  const applyInset = (): void => {
-    void wc.insertCSS(`:root{--dsh-app-inset-top:${TITLEBAR_H}px}`)
-      .catch((e: unknown) => log('webui insertCSS error: ' + String(e)));
-  };
   wc.once('dom-ready', () => {
-    log('webui dom-ready — applying inset + devtools');
-    applyInset();
+    log('webui dom-ready — devtools');
     if (process.env.LX_DSH_DEV_URL) {
       try { wc.openDevTools(); } catch (e) { log('openDevTools failed: ' + String(e)); }
     }
   });
   void wc.loadURL(baseUrl)
-    .then(applyInset)
-    .catch((e: unknown) => { wc.removeListener('dom-ready', applyInset); log('webui loadURL error: ' + String(e)); });
+    .catch((e: unknown) => log('webui loadURL error: ' + String(e)));
 }
 
 function hideWebUI(): void {
@@ -149,20 +103,20 @@ function createWindow(): void {
   });
   win.on('page-title-updated', (e) => e.preventDefault());
   win.webContents.on('render-process-gone', (_e, details) => {
-    console.log('[lx-dsh] renderer gone: reason=' + details.reason + ' exitCode=' + details.exitCode);
+    log('renderer gone: reason=' + details.reason + ' exitCode=' + details.exitCode);
   });
-  win.webContents.on('unresponsive', () => console.log('[lx-dsh] renderer unresponsive'));
-  win.webContents.on('responsive', () => console.log('[lx-dsh] renderer responsive again'));
+  win.webContents.on('unresponsive', () => log('renderer unresponsive'));
+  win.webContents.on('responsive', () => log('renderer responsive again'));
   win.webContents.on('did-fail-load', (_e, code, desc, url) => {
-    console.log('[lx-dsh] load failed: ' + code + ' ' + desc + ' ' + url);
+    log('load failed: ' + code + ' ' + desc + ' ' + url);
   });
   win.webContents.on('did-finish-load', () => {
-    console.log('[lx-dsh] did-finish-load: ' + win.webContents.getURL());
+    log('did-finish-load: ' + win.webContents.getURL());
     win.setTitle('LX-DSH');
   });
-  win.on('resize', () => layoutTitlebarView());
+  win.on('resize', () => { /* frameless: no overlay to relayout */ });
   win.once('ready-to-show', () => {
-    console.log('[lx-dsh] ready-to-show');
+    log('ready-to-show');
     win?.show();
   });
   // links opened from chat go to the system browser
@@ -179,117 +133,9 @@ function createWindow(): void {
   });
   showing = 'startup';
   loadShell(win.webContents);
-  ensureTitlebarView();
   // Auto-open DevTools in dev mode for debugging.
   if (process.env.LX_DSH_DEV_URL || process.env.LX_DSH_DEV_INSTANCE) {
     win.webContents.openDevTools({ mode: 'right' });
-  }
-}
-
-// Dev-only probes (env-gated): capture screenshots, auto-open a session.
-// Probe state is mirrored to <shotBase>.probe.log so it is readable even when
-// stdout capture is truncated.
-function probeLog(shotBase: string | undefined, msg: string): void {
-  if (!shotBase) return;
-  try {
-    const { appendFileSync } = require('node:fs') as typeof import('node:fs');
-    appendFileSync(shotBase + '.probe.log', new Date().toISOString() + ' ' + msg + '\n');
-  } catch {
-    /* ignore */
-  }
-}
-function installDebugProbes(w: BrowserWindow): void {
-  const shotBase = process.env.LX_DSH_SHOT;
-  const openId = process.env.LX_DSH_OPEN;
-  probeLog(shotBase, 'probes installed open=' + (openId ?? 'none'));
-  log('debug probes installed: shot=' + (shotBase ?? 'none') + ' open=' + (openId ?? 'none'));
-  let runningAt: number | null = null;
-  backend.onEvent((e) => {
-    if (e.state === 'running' && runningAt === null) {
-      runningAt = Date.now();
-      probeLog(shotBase, 'backend running (t0 for shots)');
-      if (openId) {
-        probeLog(shotBase, 'will send debug:open in 2.5s');
-        setTimeout(() => {
-          probeLog(shotBase, 'sending debug:open ' + openId);
-          if (!w.isDestroyed()) w.webContents.send('debug:open', openId);
-        }, 2500);
-      }
-    }
-  });
-  if (shotBase) {
-    // Boot shot: capture the startup view (new loading page) ~1.2s after launch,
-    // while the dsh backend is still coming up (warm boots reach running in ~2.5s).
-    let bootShotDone = false;
-    setTimeout(() => {
-      if (bootShotDone) return;
-      bootShotDone = true;
-      void fireShot(shotBase + '.boot.png');
-    }, 1200);
-    let tbarShotDone = false;
-    const poll = setInterval(() => {
-      if (runningAt === null) return;
-      const dt = Date.now() - runningAt;
-      if (dt >= 10000 && !shotDone[0]) {
-        shotDone[0] = true;
-        void fireShot(shotBase);
-      }
-      // Also capture the titlebar OVERLAY's own webContents (unaffected by window
-      // occlusion/hiding) so the chrome can be inspected on its own.
-      if (dt >= 15000 && !tbarShotDone) {
-        tbarShotDone = true;
-        void (async () => {
-          const p = shotBase + '.tbar.png';
-          try {
-            if (titlebarView && !titlebarView.webContents.isDestroyed()) {
-              const img = await Promise.race([
-                titlebarView.webContents.capturePage(),
-                new Promise((_, rej) => setTimeout(() => rej(new Error('tbar capture timeout (8s)')), 8000)),
-              ]);
-              writeFileSync(p, img.toPNG());
-              probeLog(shotBase, 'titlebar overlay shot saved: ' + p);
-            } else {
-              probeLog(shotBase, 'titlebar overlay not available (titlebarView null/destroyed)');
-            }
-          } catch (err) {
-            probeLog(shotBase, 'titlebar overlay shot failed: ' + String(err));
-          }
-        })();
-      }
-      if (dt >= 40000 && !shotDone[1]) {
-        shotDone[1] = true;
-        const dot = shotBase.lastIndexOf('.');
-        void fireShot(dot === -1 ? shotBase + 'b.png' : shotBase.slice(0, dot) + 'b' + shotBase.slice(dot));
-        clearInterval(poll);
-      }
-    }, 1000);
-    setTimeout(() => {
-      if (runningAt === null) {
-        clearInterval(poll);
-        probeLog(shotBase, 'shots cancelled: backend never reached running within 180s');
-      }
-    }, 180000);
-    const shotDone = [false, false];
-    const fireShot = async (path: string): Promise<void> => {
-      probeLog(shotBase, 'shot firing: ' + path + ' (t+' + Math.round((Date.now() - (runningAt ?? 0)) / 1000) + 's after running)');
-      log('debug shot firing: ' + path);
-      try {
-        if (w.isDestroyed()) {
-          probeLog(shotBase, 'shot aborted: window destroyed');
-          return;
-        }
-        const img = await Promise.race([
-          w.webContents.capturePage(),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('capturePage timeout (10s)')), 10000)),
-        ]);
-        writeFileSync(path, img.toPNG());
-        probeLog(shotBase, 'shot saved: ' + path);
-        log('debug shot saved: ' + path);
-      } catch (err) {
-        probeLog(shotBase, 'shot failed: ' + String(err));
-        log('debug shot failed: ' + String(err));
-      }
-    };
   }
 }
 
@@ -399,7 +245,9 @@ function registerIpc(): void {
   ipcMain.handle('lx:api', async (e, domain: string, method: string, payload: unknown) => {
     // D5 native intercepts: these drive the desktop, do them locally
     if (domain === 'host' && method === 'pickDirectory') {
-      const r = await dialog.showOpenDialog(e.sender.getBrowserWindow() ?? new BrowserWindow({ show: false }), {
+      const bw = e.sender.getBrowserWindow();
+      if (!bw) return { rpcId: randomUUID(), result: { ok: false, error: { code: 'no-window', message: 'no browser window attached' } } };
+      const r = await dialog.showOpenDialog(bw, {
         properties: ['openDirectory'],
       });
       const path = r.canceled ? null : r.filePaths[0];
@@ -434,6 +282,7 @@ function registerIpc(): void {
     }
   });
   ipcMain.handle('lx:backend', () => backend.info());
+  ipcMain.handle('lx:appVersion', () => app.getVersion());
   ipcMain.handle('lx:restart', () => {
     backend.restart();
     return true;
@@ -531,7 +380,9 @@ function registerIpc(): void {
   ipcMain.handle('lx:plugins:install', async (_e, name: string) => {
     try {
       const { execFileSync } = await import('node:child_process');
-      const dshBin = join(vendorRoot, 'lib', 'bin.js');
+      const vr = backend.vendorRootPath;
+      if (!vr) return { ok: false, error: 'dsh runtime not ready' };
+      const dshBin = join(vr, 'lib', 'bin.js');
       execFileSync(process.execPath, [dshBin, 'plugin', '--profile', 'web', 'add', name], {
         cwd: join(dshHome, 'profiles', 'web'),
         stdio: 'pipe',
@@ -546,7 +397,9 @@ function registerIpc(): void {
   ipcMain.handle('lx:plugins:uninstall', async (_e, name: string) => {
     try {
       const { execFileSync } = await import('node:child_process');
-      const dshBin = join(vendorRoot, 'lib', 'bin.js');
+      const vr = backend.vendorRootPath;
+      if (!vr) return { ok: false, error: 'dsh runtime not ready' };
+      const dshBin = join(vr, 'lib', 'bin.js');
       execFileSync(process.execPath, [dshBin, 'plugin', '--profile', 'web', 'remove', name], {
         cwd: join(dshHome, 'profiles', 'web'),
         stdio: 'pipe',
@@ -600,24 +453,16 @@ if (!gotLock) {
     app.setName('LX-DSH');
     buildMenu();
     createWindow();
-    if (win) installDebugProbes(win);
     buildTray();
     registerIpc();
     const sendIfAlive = (channel: string, payload: unknown): void => {
       try {
         if (win && !win.isDestroyed()) {
-          // backend:frame is only consumed by the titlebar overlay's React app.
-          // The main webContents runs the dsh web UI which has no listener for
-          // it — forwarding there is pure IPC serialization overhead.
-          if (channel === 'backend:frame') {
-            if (titlebarView && !titlebarView.webContents.isDestroyed()) {
-              titlebarView.webContents.send(channel, payload);
-            }
-          } else {
+          // backend:frame has no listener in the main webContents (the dsh web
+          // UI reads the backend directly over HTTP) — sending there is pure
+          // IPC serialization overhead, so it is dropped.
+          if (channel !== 'backend:frame') {
             win.webContents.send(channel, payload);
-            if (titlebarView && !titlebarView.webContents.isDestroyed()) {
-              titlebarView.webContents.send(channel, payload);
-            }
             log('ipc send ' + channel);
           }
         } else if (channel !== 'backend:frame') {
@@ -640,13 +485,29 @@ if (!gotLock) {
         hideWebUI();
       }
     });
-    backend.start();
+    // Resolve (and, on first launch / after a dsh-bumping update, extract)
+    // the dsh runtime before booting the backend. In dev this returns the
+    // deepseek-harness workspace build; packaged it extracts resources/dsh.zip
+    // to %APPDATA%/LX-DSH/dsh. Blocks the main loop only during extraction
+    // (~30-60s, one time) — the startup view shows 'starting' meanwhile
+    // (announce fires, and the listeners above are already wired).
+    let dshRoot: string | null = null;
+    try {
+      dshRoot = ensureDshRuntime(() => backend.announce('首次启动：正在解压 dsh 运行时…'));
+      backend.setVendorRoot(dshRoot);
+      log('dsh root: ' + dshRoot);
+    } catch (err) {
+      backend.reportStartupError(String((err as Error)?.message ?? err));
+    }
+    // Only boot if the runtime resolved; on failure the startup view shows
+    // the error and the user can retry via the tray / menu.
+    if (dshRoot) backend.start();
     // auto-update check (skipped in dev)
     initUpdater(win);
     try {
       globalShortcut.register('CommandOrControl+Shift+Space', toggleWindow);
     } catch (err) {
-      console.warn('[lx-dsh] global shortcut registration failed:', String(err));
+      log('global shortcut registration failed: ' + String(err));
     }
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());

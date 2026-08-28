@@ -1,7 +1,7 @@
 # LX-DSH 设计方案（原生 UI 优先）
 
-> 状态：M1 完成（2026-08-18）——原生 React 聊天 UI + 自绘标题栏全部跑通；M2（设置/凭据/导出/主题）待开始
-> 日期：2026-08-18
+> 状态：M1 完成（2026-08-18）｜2026-08-26 清理 + 代码审查 + M1.5 技术债全部修复（见进度日志与 §13）｜同日打包流水线重构完成（§14，dist 87s / setup 115MB）｜2026-08-28 dsh web UI 原生接管 + vendor 退役（全源码 assemble-dist）｜M2 待开始
+> 日期：2026-08-28
 > 项目位置：C:/Users/xzy/Desktop/my/DSH/lx-dsh
 > 目标机器：Windows（Node 24 / npm 11 / pnpm 11 已就绪）
 
@@ -47,6 +47,66 @@
   4. **unwrap 遗漏**：openHistoryWithRetry 重构时丢了 `unwrap(`，history 包络被当 value 用 → `res.events` undefined（截图比对 + 双侧 IPC 日志定位）
 - **验证记录**：shotJ（running 后 t+41s，203KB）完整渲染 11709 事件会话：markdown 表格、reasoning 折叠、turn 分隔、pwsh 工具卡 DONE、seq 水印、模型选择器、侧边栏标题投影（“帮我卸载一下web ui插件”）✅；窗口标题 LX-DSH ✅；renderer 零报错 ✅
 - **调试工具**（env 门控，保留）：`LX_DSH_SHOT=<png>` 截图探针 + `LX_DSH_OPEN=<sessionId>` 自动开会话；`ELECTRON_ENABLE_LOGGING=1` 看渲染端控制台
+
+**下一步 M2**：设置/凭据/LLM 页、会话导出（原生保存对话框）、agentPreset、主题跟随、通知。
+
+### 2026-08-26 清理调试残留 + 全量代码审查
+
+- **清理调试残留**：
+  - **根目录**（非 git 仓库，不可恢复，均为一次性产物）：删除 `dsh-web-wrapper.mjs`（**含硬编码 DEEPSEEK_API_KEY / MYT_API_KEY ⚠️**）、`dsh-web-crash.log`、`dsh-web-stderr.txt`、`screenshot.png` / `screenshot2.png` / `screenshot_small.jpg` / `tiny.png`。
+  - **`lx-dsh/scripts/`**（git 跟踪，可从历史恢复）：删除 26 个一次性脚本——`probe-*.mjs` ×18（M0 协议逆向探针）、`cdp-capture.mjs` / `cdp-eval.mjs`、`repair-seq-gap.mjs`、`screenshot.mjs`、`resolve-symlinks.mjs`、`revendor-head.mjs`、`vendor-safe.mjs`。全部无生产/构建引用（grep 确认：仅自引用 + `main.ts` 一处过时注释）。保留 `wire-spike.mjs`（M0 里程碑产物 + `npm run spike`）及 8 个构建脚本。清理后 `scripts/` 仅剩 9 个文件。
+  - `electron/main.ts`：移除引用已删 `cdp-capture.mjs` 的过时注释。
+  - git 状态：26 deleted + 1 modified，零风险。
+- **全量代码审查**：通读 electron/（main/backend/api-client/updater/update-apply/log 共 6 文件）+ preload + shared（2）+ ui/src（store/bridge/types + App/ChatView/Sidebar/Titlebar/PluginView/StartupView/fold/markdown 共 9 组件）+ 构建脚本（build/dev）。详见 **§13**。结论：架构扎实、踩坑后的设计（file-first logger、rAF 批处理帧、delta+full 双路更新、运行时契约 import）经得起推敲；发现 1 个中等时序缺陷、1 个安全建议、若干代码质量项，已列为 M1.5 技术债。
+- **下一步**：M1.5 先清技术债（§13 中 P0/P1 项），再进 M2 功能开发。
+
+### 2026-08-26 M1.5 完成（技术债清理 + 代码审查修复）
+
+- **P0 缺陷修复**：`backend.ts` `watchBanner` 的 exit 监听器原先挂在 `null` child 上（`watchBanner()` 在 `spawn()` 前调用，`this.child?.once` 可选链跳过）。改为先 spawn 再 `watchBanner(this.child, …)`，exit 监听器挂到真实 child；banner catch 加 `if (this.restartTimer) return` 守卫避免与 `onChildExit` 的 `scheduleRestart` 状态覆盖。
+- **P1 安全**：`update-apply.ts` `procName` 加 `/^[A-Za-z0-9._-]+$/` 白名单校验（防未来动态 exeName 注入 PowerShell）。更新服务器 HTTPS 按用户决定暂缓，保持 HTTP（载荷 sha512 双层校验仍保证完整性）。
+- **Q1–Q9 代码质量全部修复**：
+  - Q1 移除 `installDebugProbes`/`probeLog`（~105 行）+ preload `debug` 面 + store `debug.onOpen` 块 + `writeFileSync` import
+  - Q2 `createWindow` 6 处 `console.log/warn` → `log()`
+  - Q3 `App.tsx` `init()` 移入 `useEffect`
+  - Q4 `store.ts` 导出 `syncThemeFromSettings`，`PluginWindow` 复用（删 ~20 行内联重复）
+  - Q5 `api-client.ts` `wsStream` `queue.shift()` → head-index 游标 + 定期 compact
+  - Q6 `pickDirectory` 兜底隐藏窗 → 返回 `{ ok: false, error: 'no-window' }`
+  - Q7 `Sidebar.tsx` `ownerOf` 构 `wsBySession` Map 索引（O(W·S) → O(sum)）
+  - Q8 `markdown.tsx` 补 GFM 表格分支（`isTableSep` + header/rows 解析）
+  - Q9 插件入口统一为独立窗（Sidebar 直接 `lx.plugins.open()`），移除 App `showPlugins` 死代码 + `lx:open-plugins` 事件
+- **构建验证**：`npm run build` 全绿——Vite 1932 模块 + esbuild main/preload，零错误零警告。
+
+### 2026-08-26 打包流水线重构（setup 提速 + 本地 dsh 入包）
+
+- **背景**：`npm run dist` 5 分钟起（post-vendor robocopy 211MB/30881 文件 = 59s + NSIS 压 561MB）；vendor lib 是官方版而非本地改版；asar 混入陈旧重复文件 + 1.1MB sourcemap。
+- **改动**：
+  - 新增 `scripts/pack-vendor.mjs`：本地 lib 覆盖（mtime 幂等）+ robocopy 排除规则裁剪（211MB→114MB）+ 7za store zip（零压缩 CPU）+ mtime 哨兵缓存（410ms 命中）。
+  - 新增 `electron/dsh-runtime.ts`：打包版首启 `tar -xf` 解压 `resources/vendor/dsh.zip` → `%APPDATA%/LX-DSH/dsh`（~15s 一次性），mtime 标记失效重解；dev / `LX_DSH_ROOT` 路径不变。
+  - `backend.ts` 加 `setVendorRoot/announce/reportStartupError`；`main.ts` whenReady 先 ensureDshRuntime 再 start（监听器已就绪，解压期启动页显示 starting）。
+  - `package.json`：extraResources 带 dsh.zip；dist 脚本 `post-vendor` → `pack-vendor`。
+  - `build.mjs`：dist-electron 构建前清空 + 生产 sourcemap:false。
+  - 删除 `scripts/post-vendor.mjs`。
+- **踩坑**：`/XD doc` 误删 `yaml` 包源码目录 `dist/doc/` 致启动失败——解压+独立 DSH_HOME 启动测试抓到，已修正排除规则。详见 §14.4。
+- **验证**：`npm run dist` **87s**；setup **115.4MB**（旧 168.8MB）；asar 1.07MB（无 .map/重复）；裁剪后 dsh **banner OK**（冷启动 26s）。
+- **注意**：本机已安装旧版 0.2.1（当前会话正运行其中），**未**卸载重装——新 setup 需在干净机器或本会话结束后安装验证。
+
+**下一步 M2**：设置/凭据/LLM 页、会话导出（原生保存对话框）、agentPreset、主题跟随、通知。
+
+### 2026-08-28 dsh web UI 原生接管 + vendor 退役（全源码构建）
+
+- **dsh web UI 直接进主窗**：不再 LX 自绘 React 界面（M1 的原生 UI 路线终结），dsh web UI 加载进主 webContents；LX 壳只保留启动页/插件窗口/托盘/更新。frameless 无标题栏，窗口 chrome 全部由 `ui-lx-shell` 客户端插件注入：
+  - `deepseek-harness/packages/client/ui-lx-shell/`（新插件包，自 ui-lx-updater 扩展重命名）：更新指示器 + 插件管理 + 最小化/最大化/关闭（`conversation.session.header.utilities` 槽）+ General 设置更新行（root 作用域，双 store 实例）+ 品牌（sidebar.mark/name、hero.mark）
+  - 拖拽区：`claimWindowDragRegion` 给所属 `<header>` 与 hero 根打 `data-lx-drag`；`drag.css` 全局规则 + 交互元素 no-drag；双击最大化
+  - Session log 图标化（session-log-export，30px 圆形胶囊 + `action.export`）
+  - 品牌替换：侧栏 LX-DSH + 自有 logo；左下 `v{appVersion}`（新 IPC `lx:appVersion`，`sidebar.footer.action`）
+  - 空会话 bare header：blank 草稿不再隐藏整个 header（`bareChrome`/`headerBlank` 变体）——窗口控制与 tabs 常驻，只藏标题簇（ui-conversation 原生样式修改）
+- **vendor 退役（全源码 → dist）**：
+  - 新增 `scripts/assemble-dist.mjs`：deepseek-harness `pnpm run build`（全量 tsc -b + tsdown + vite）→ `pnpm --filter @deepseek-ai/dsh deploy --legacy --prod` 物化 CLI 闭包到 `dist/dsh`（176 个 @deepseek-ai 包全部来自本仓库源码）→ 补 legacy hoist + symlink 物化（模式取自 harness `build-exe-for-python-sdk.ts`）→ robocopy 裁剪 → 7za store zip → `dist/dsh.zip`（114 MB，比 vendor 版小）
+  - 删除 `vendor-dsh.mjs` / `pack-vendor.mjs` / `build-web.mjs` / `vendor/`（~230 MB）；LOCAL_PACKAGES overlay 列表消失——后端包改动自动进构建
+  - `dsh-runtime.ts`：dev 直接跑 `../deepseek-harness/apps/cli`（workspace 构建产物）；打包版解压 `resources/dsh.zip`（路径从 vendor/ 迁移）
+  - dev 后端 = workspace：改后端包只需 harness 内 `pnpm run build:lib` 增量编译
+- **踩坑**：PowerShell 5.1 `Set-Content -Encoding utf8` 写 BOM → 后端 `JSON.parse` 崩溃重启 5 次放弃（改用 node/[IO.File] 写清单）；host 构建面（tsconfig.host.json）会类型检查测试文件，client spec 的 stub 需 `as unknown as`。
+- **验证**：assemble 全链路 ✓（sanity：bin.js / 前端 dist / wire contract）；dev 后端 = workspace，handshake ✓；harness 客户端测试 481/481 ✓；verify-client-packages 41 包 ✓。
 
 **下一步 M2**：设置/凭据/LLM 页、会话导出（原生保存对话框）、agentPreset、主题跟随、通知。
 
@@ -257,6 +317,8 @@ main 的 IpcBridge 维护两个消费循环（mux/host 各一），把 frame 投
 | **M0 协议尖刀**（1~2 天） | Electron 骨架 + backend.ts（spawn/横幅/端口）+ DesktopApiClient（host.describe + 两条 WS + 一个 session.list 调用） | 终端里跑 main，打印出 host.describe 结果、mux 收到 host 帧；杀后端进程看到横幅重解析。 |
 | **M1 聊天 MVP**（~3 天） | IpcBridge + preload + React 壳：启动页/会话列表/聊天（history 回填 + 流式渲染 + prompt + cancel）+ 模型选择器 + 托盘/单实例/快捷键 | 完成一次真实对话：看到流式输出、工具折叠卡片、模型切换生效；关窗到托盘、托盘退出干净杀进程树。 |
 | **M2 设置与完善**（~3 天） | settings/credentials/llm 动态表单页、工作区管理、会话导出（原生另存为）、agentPreset 选择、主题/语言跟随、窗口状态记忆 | 在桌面端改默认模型/加 provider 凭据 → 新会话生效；导出 ZIP 可用；与 Web GUI 数据一致（同 DSH_HOME）。 |
+| **M1.5 技术债清理**（~1 天） | 见 §13：backend watchBanner exit 监听器修复、installDebugProbes 抽离/移除、更新服务器 HTTPS、PluginWindow 主题逻辑去重、init() 移入 useEffect、wsStream 队列改 head-index | §13 P0/P1 项全部关闭；`npm run build` 全绿。 |
+| ↑ **M1.5 已完成 2026-08-26** | P0 watchBanner + P1 procName 白名单 + Q1–Q9 全部修复；`npm run build` 全绿（vite 1932 模块 + esbuild main/preload，零错误零警告）。HTTPS 按用户决定暂缓保持 HTTP。 | ✅ |
 | **M3 桌面能力 + 打包**（~2 天） | 通知（question/turn）、Web 视图兜底窗、开机自启、日志窗、NSIS + portable 出包 | 安装包装机可用；agent 提问时系统通知点击回会话；Web 视图里 SSH/任务看板插件正常。 |
 | **M4 后续（按需）** | 自动更新、会话全文搜索、子代理面板原生版、多窗口多会话并排、内嵌运行时模式 | — |
 
@@ -319,3 +381,110 @@ lx-dsh/
 3. **M1 之后是否保留 Web 视图**：建议保留（插件兜底，成本≈0）；
 4. **是否需要 macOS/Linux 支持**：方案按 Windows 优先写（进程树 kill、自启、NSIS），跨平台留接口；
 5. **通知与快捷键默认值**：Ctrl+Shift+Space 切窗、question 待答系统通知 —— OK？
+
+---
+
+## 13. 代码审查记录（2026-08-26）
+
+> 范围：electron/ 6 文件 + preload/index.ts + shared/ 2 文件 + ui/src 9 组件 + scripts/build|dev。按严重度分级。
+
+### 13.1 缺陷（P0 应修） — ✅ 已修复 2026-08-26
+
+**[P0] backend.ts · watchBanner exit 监听器挂在错误的 child 引用** ✅
+- 位置：`backend.ts` `boot()` 第 148–149 行。`const bannerP = this.watchBanner(...)` 在 `this.child = spawn(...)` **之前**调用；而 `watchBanner` 内部第 250 行 `this.child?.once('exit', ...)` 在调用时同步求值——此刻 `this.child` 仍为 `null`（首启）或上一轮的 child，可选链直接跳过，**真正的 child 上从无 exit 监听器**。
+- 后果：若后端子进程在打出横幅前退出（dsh 崩溃/缺依赖），`bannerP` 不会因 exit 而提前 reject，只能等到 120s banner 超时。期间 `onChildExit`（第 156 行注册，挂在正确 child 上）已触发 `scheduleRestart` → 新一轮 `boot()` 叠加在仍 await `bannerP` 的旧 `boot()` 之上，造成多个 `boot()` 协程并存 + `watchBanner` 的 `setInterval` 泄漏（直到 120s 超时才清）。崩溃退避（1/3/9s）会掩盖多数情况，但极端场景下产生状态机紊乱。
+- 修复：把 child 作为参数传入 `watchBanner(child, timeoutMs)`，或先 `spawn` 再 `watchBanner`；exit 监听器注册到真正的 child 上。
+  - **已实施**：调整 `boot()` 顺序（先 spawn 注册监听 → 再 `watchBanner(this.child, …)`），`watchBanner` 签名改为接收 `child: ChildProcess`；banner catch 加 `if (this.restartTimer) return` 守卫，child 在 banner 前 exit 时 `onChildExit` 已 `scheduleRestart`（armed restartTimer + emit 'starting'），banner catch 不再 emit('failed') 覆盖状态。
+
+### 13.2 安全（P1 建议） — ✅ 已处理 2026-08-26（HTTPS 按用户决定暂缓）
+
+**[P1] updater.ts · 更新服务器走 HTTP 明文** — ⏸ 暂缓（用户决定先用 HTTP）
+- 位置：`updater.ts` 第 22 行 `const UPDATE_SERVER = 'http://123.57.129.111'`。
+- 现状：delta 包整体 sha512 校验（`downloadAndStageDelta` 第 171–174 行）+ manifest 内逐文件 sha512（第 198–203 行）已保证**载荷完整性**——MITM 无法注入恶意代码。但 `latest.json` 元数据本身无签名，明文 HTTP 下可被篡改：MITM 可固定一个旧版本号让 `cmpVer` 判定「已是最新」造成**更新停滞**，或反复触发 fullFallback 造成更新抖动。
+- 建议：更新服务器上 HTTPS + 证书；客户端 `fetch` 自动校验。载荷的 sha512 双层校验可保留为纵深防御。**→ 用户决定暂缓，保持 HTTP，后续再上 HTTPS。**
+
+**[P1] update-apply.ts · procName 未转义直接代入 PowerShell** ✅ 已修复
+- 位置：`update-apply.ts` 第 121 行 `.split('{{PROC}}').join(procName)`，代入 `Get-Process -Name "{{PROC}}"` 与 `Stop-Process -Name "{{PROC}}"`。
+- 现状：`procName` 来自 `exeName`（`updater.ts` 第 216 行硬编码 `'LX-DSH.exe'`），当前无注入面。但 `psEscape` 只处理了路径占位符的双引号反斜杠转义，`{{PROC}}` / `{{ELEVATION}}` 是裸替换。若 `exeName` 未来变为动态来源即成注入点。
+- 建议：`procName` 加 `if (!/^[A-Za-z0-9._-]+$/.test(procName)) throw` 白名单校验。**已实施。**
+
+### 13.3 代码质量（P2 可后排） — ✅ 全部已修复 2026-08-26
+
+| # | 位置 | 问题 | 建议 | 状态 |
+|---|------|------|------|------|
+| Q1 | `main.ts` 189–294 | `installDebugProbes` + `probeLog` 共 ~105 行 env 门控调试探针（截图/自动开会话），是已删 probe 脚本的**代码内孪生体**。PLAN 原标「保留」，但 M1 已完成可退场。 | 抽到独立 `electron/debug-probes.ts`（仅 `LX_DSH_DEV_INSTANCE` 时 import）或直接移除；同步清 preload `debug` 面 + store `init()` 内 `debug.onOpen` 块 + `writeFileSync` import。 | ✅ 已移除（含 preload debug 面 + store debug.onOpen 块 + writeFileSync import） |
+| Q2 | `main.ts` 152/154/157/160/165 | `createWindow` 的事件处理用 `console.log` 而非 `log()`，与 `log.ts` 文件优先、规避 stdout 背压的设计相悖（低频，但与既定原则不一致）。 | 改用 `log()`。 | ✅ 已改 `log()`（含 globalShortcut 的 console.warn） |
+| Q3 | `App.tsx` 71 | `useLX.getState().init()` 在函数体（render 期）调用，非 `useEffect`。靠 `inited` 幂等保护功能正确，但属 render 期副作用反模式。 | 移入 `useEffect(() => useLX.getState().init(), [])`。 | ✅ 已移入 useEffect |
+| Q4 | `App.tsx` 23–64 `PluginWindow` | 内联重写了 `resolveTheme`/`syncThemeFromSettings`（第 43–50 行），注释自承「syncThemeFromSettings 是模块级函数调不到」。 | `store.ts` 导出 `syncThemeFromSettings`，PluginWindow 复用。 | ✅ store 已导出，PluginWindow 复用 |
+| Q5 | `api-client.ts` 105 | `wsStream` 用 `queue.shift()` 取帧，Array.shift 是 O(n)，高频流下 O(N²)/批。当前帧率可接受，但是已知反模式。 | 改 head-index 游标或环形缓冲。 | ✅ 已改 head-index + 定期 compact |
+| Q6 | `main.ts` 402 | `pickDirectory` 兜底 `?? new BrowserWindow({ show: false })` 造一个永不销毁的隐藏窗。sender 实际总有窗。 | 兜底直接 `throw` 或 `return null` 结果。 | ✅ 已改为返回 `{ ok: false, error: 'no-window' }` |
+| Q7 | `Sidebar.tsx` 74–77 | `ownerOf` 对每个 session 扫所有 workspace 的 sessionIds，O(W·S)。 | 构一次 `sessionId → workspaceId` 索引。 | ✅ 已构 `wsBySession` Map 索引 |
+| Q8 | `markdown.tsx` | 无表格支持，但 PLAN §5.3 / 进度日志 M1 称「markdown 表格」——实际表格会渲染成普通段落。 | 补 GFM 表格分支，或修订文档措辞。 | ✅ 已补 GFM 表格分支（`isTableSep` + header/rows 解析） |
+| Q9 | 插件入口不一致 | Titlebar 的 Package 按钮 → 独立窗（`lx.plugins.open`）；Sidebar 的 Settings 按钮 → 主窗内联视图（`lx:open-plugins` 事件）。两个入口两种行为。 | 统一为独立窗或内联其一。 | ✅ 统一为独立窗（Sidebar 直接 `lx.plugins.open()`），移除 App `showPlugins` 死代码 |
+
+### 13.4 优点（确认扎实，勿动）
+
+- **`backend.ts` 生命周期**：1s/3s/9s 退避（max 5）、banner 120s 超时、stream-open 20s 超时、`abortController` 切流、`taskkill /t /f` 杀进程树、`restartTimer.unref()`——覆盖完整。
+- **`api-client.ts`**：运行时 `import()` 契约包的 `AbstractApiClient`，wire schema 永远匹配正在跑的后端，杜绝客户端/后端版本漂移；WS 队列+waiter 的 push/await 模型干净。
+- **`log.ts`**：文件优先日志，规避 Windows 同步管道写阻塞主循环（M1 实测踩坑）——设计有据。
+- **`updater.ts`**：delta（baseVersion 匹配）+ full NSIS 双路回退、manifest 内逐文件 sha512、`baseVersion` 双重校验、`isDirWritable` 探测 UAC 需求——考虑周全。
+- **`store.ts`**：rAF 批处理 mux 帧（O(1) push + 单次 `events.slice()` 拷贝/批）+ LRU 会话缓存（Map 插入序淘汰）+ 切会话快照——是真实优化，注释把「为何不每帧 set」讲清楚了。
+- **`shared/chrome.ts`**：`TITLEBAR_H` 单一真相，main（overlay 边界）与 preload（`__DSH_HOST__` inset 契约）共用，不可能漂移。
+- **安全基线**：所有 webContents `contextIsolation: true` + `nodeIntegration: false`；`window.open` 一律转系统浏览器；特权域（pickDirectory/openPath）在 main 收口。
+- **构建脚本**：`dev.mjs` 用 TCP 端口探测 Vite 就绪（而非解析 stdout）规避 piped-stdio EPERM；`build.mjs` 命名 entry 保证产物扁平（`dist-electron/main.cjs` 直接被 `package.json#main` 加载）。
+
+---
+
+## 14. 打包流水线重构（2026-08-26）
+
+### 14.1 问题（setup 审查发现）
+
+1. **编译慢**：`post-vendor.mjs` 每次构建 robocopy 211MB / 30881 文件 = **59s**，NSIS 还要压缩 561MB 的 win-unpacked；整个 `npm run dist` 5 分钟起。
+2. **vendor lib 是官方版**：`vendor-dsh.mjs` 从全局 npm install 拷贝，本地 `deepseek-harness/apps/cli/lib/` 的改动不会进包。
+3. **84MB 运行时垃圾进包**：`.map` / `.d.ts` / `.md` / LICENSE / CHANGELOG / 多平台 prebuilds（win32-arm64 11.2MB、darwin、linux）。
+4. **asar 陈旧重复文件**：`dist-electron/` 从不清理，旧目录结构构建残留（`electron/main.cjs`、`preload/index.cjs`）每次都被 `dist-electron/**` glob 打进 asar。
+5. **sourcemap 泄漏**：生产 asar 含 1.1MB `main.cjs.map`。
+6. **electron-builder 26 无 `nsis.compression` 选项**（配置了直接 schema 报错）——NSIS 压缩实际由顶层 `compression` 控制。
+
+### 14.2 新流程
+
+```
+npm run dist
+  └─ npm run build                    # vite + esbuild（dist-electron 先清空，sourcemap: false）
+  └─ scripts/pack-vendor.mjs          # ① 本地 lib 覆盖 vendor/dsh/lib（mtime 幂等）
+                                       # ② robocopy 排除规则裁剪（.map/.d.ts/.md/@types/
+                                       #    *arm64*/*darwin*/*linux*/tests/examples 等）
+                                       # ③ 7za -tzip -mx=0 store 压缩 → vendor/dsh.zip
+                                       #    （store 模式：零压缩 CPU，NSIS 统一压一次）
+                                       #    mtime 哨兵缓存：vendor/本地 lib 没变 → 跳过（410ms）
+  └─ electron-builder --win --dir     # extraResources 带入单个 dsh.zip（不再拷 3 万文件）
+  └─ electron-builder --win nsis      # 压缩 466MB（旧 561MB）
+```
+
+**运行时解压**（`electron/dsh-runtime.ts`，新增）：
+- 打包版首启：`resources/vendor/dsh.zip` → `tar -xf` 解压到 `%APPDATA%/LX-DSH/dsh/`（~15s，一次性），写 mtime 标记文件；
+- 标记 vs zip mtime 不一致（dsh 版本更新）→ 重新解压；
+- 开发版（`npm start`）/ `LX_DSH_ROOT`（`dev:src`）→ 直接用 vendor/dsh 或本地源码，不经过 zip；
+- `backend.ts` 新增 `setVendorRoot()` / `announce()` / `reportStartupError()`，解压期间启动页显示 "Starting dsh backend…"。
+
+**增量更新兼容**：delta 更新把新的 `resources/vendor/dsh.zip` 单文件替换进安装目录 → mtime 变化 → 下次启动自动重新解压。
+
+### 14.3 验证记录
+
+| 项 | 结果 |
+|----|------|
+| 完整 `npm run dist` | **87s**（旧流程 5 分钟起） |
+| pack-vendor 缓存命中 | **410ms**（vendor 未变时跳过） |
+| setup 大小 | **115.4 MB**（旧 168.8 MB） |
+| win-unpacked | 466.5 MB（旧 561 MB） |
+| asar | 1.07 MB（旧 2.2 MB，无 .map、无重复文件） |
+| zip 解压（bsdtar） | 7.9–14.7s，13179 文件精确匹配 |
+| **裁剪后 dsh 启动** | **banner OK**（独立 DSH_HOME 冷启动 26s，`dsh web --port 0` 正常出横幅） |
+
+### 14.4 踩坑（勿重蹈）
+
+- **`doc` 目录不能排除**：`yaml` 包的 `dist/doc/` 是**源码**（Document 类），不是文档。初版排除规则 `/XD doc docs` 导致 `Cannot find module '../doc/directives.js'` 启动失败——靠「解压 zip + 独立 DSH_HOME 启动测试」抓到。教训：裁剪后必须做**启动级验证**，不能只看文件列表。
+- **robocopy 退出码 0-7 都是成功**（1 = 有文件拷贝），execFileSync 需 try/catch 按 8+ 判失败。
+- **`$home` 是 PowerShell 只读自动变量**，脚本里不能用作临时变量名（曾导致 DSH_HOME 误设为用户主目录）。
+- **7za store zip + bsdtar 解压**往返验证过（`-tzip -mx=0` 产出标准 zip，Win10+ 自带 `tar.exe` 可读）。
+- 本机 I/O 很慢（Windows Defender 实时扫描 + 远程环境）：首次 pack ~5 分钟（13179 文件），后续构建走缓存 410ms——**打包慢 ≠ 每次构建慢**。

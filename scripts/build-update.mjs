@@ -1,7 +1,8 @@
 // scripts/build-update.mjs — build the lightweight update package.
 //
-// After the full build (electron-builder --win --dir + post-vendor), the
-// dist/win-unpacked directory is the complete release. This script:
+// After the full build (electron-builder --win --dir with assemble-dist's
+// dsh.zip in resources), the dist/win-unpacked directory is the complete
+// release. This script:
 //
 //   1. sha512-hashes every file in win-unpacked
 //   2. diffs against the previous full manifest (.update-base.json at repo root)
@@ -17,7 +18,7 @@
 // update package becomes a full snapshot, functionally equivalent to a fresh
 // install payload.  That is fine for the very first release.
 //
-// Usage:  node scripts/build-update.mjs   (after post-vendor)
+// Usage:  node scripts/build-update.mjs   (after electron-builder --win --dir)
 import { createHash } from 'node:crypto';
 import {
   existsSync, readFileSync, writeFileSync, statSync, lstatSync,
@@ -91,7 +92,7 @@ function cmpVer(a, b) {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 if (!existsSync(join(src, 'LX-DSH.exe'))) {
-  console.error('[build-update] dist/win-unpacked/LX-DSH.exe missing — run build + electron-builder --win --dir + post-vendor first');
+  console.error('[build-update] dist/win-unpacked/LX-DSH.exe missing — run build + electron-builder --win --dir first');
   process.exit(1);
 }
 
@@ -143,6 +144,25 @@ execFileSync(find7za(), ['a', '-bd', '-mx=6', '-mtc=off', out, '.'], {
   stdio: 'inherit',
 });
 rmSync(stageDir, { recursive: true, force: true });
+
+// The ready-to-upload server manifest: /update/win/latest.json. `notes` feeds
+// the in-app update dialog's changelog section — author it in RELEASE_NOTES.md
+// at the repo root before running this script; absent file → no notes field.
+const notesPath = join(root, 'RELEASE_NOTES.md');
+const notes = existsSync(notesPath) ? readFileSync(notesPath, 'utf8').trim() : undefined;
+const latest = {
+  version,
+  baseVersion,
+  channel: 'stable',
+  date: new Date().toISOString(),
+  url: `/download/${version}/LX-DSH-update-${version}.zip`,
+  sha512: createHash('sha512').update(readFileSync(out)).digest('hex'),
+  size: statSync(out).size,
+  fullFallback: false,
+  ...notes !== undefined ? { notes } : {},
+};
+writeFileSync(join(root, 'dist', 'latest.json'), JSON.stringify(latest, null, 2));
+console.log('[build-update] server manifest: dist/latest.json — upload it next to the zip on the update server');
 
 // save current full manifest as new base
 writeFileSync(basePath, JSON.stringify({ version, files: Object.fromEntries(current) }));

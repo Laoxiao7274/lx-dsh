@@ -1,12 +1,14 @@
 // Locate the global dsh install, a Node binary, and the wire-contract package.
 // Dependency-free; used by the M0 spike and (later) the Electron main process.
+// (The normal runtime path no longer lands here: dev runs the deepseek-harness
+// workspace build and packaged builds extract dist/dsh.zip — see dsh-runtime.ts.)
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-// Locate the npm-global (or LX_DSH_ROOT) dsh install, ignoring any app-local vendor
-// copy. Used by `scripts/vendor-dsh.mjs` to find the source tree to copy.
+// Locate the npm-global (or LX_DSH_ROOT) dsh install. Last-resort lookup used
+// by findDshRoot when no resolved runtime root was handed in.
 export function findGlobalDshRoot() {
   if (process.env.LX_DSH_ROOT) {
     if (existsSync(join(process.env.LX_DSH_ROOT, 'lib', 'bin.js'))) return process.env.LX_DSH_ROOT;
@@ -30,9 +32,9 @@ export function findGlobalDshRoot() {
   throw new Error('dsh not found. Install it with: npm i -g @deepseek-ai/dsh (or set LX_DSH_ROOT to the package dir)');
 }
 
-// Resolve the dsh root to run: prefer the app's vendored (self-contained) copy so the
-// desktop app no longer depends on the global npm install; fall back to the global
-// install when no vendor copy is present (i.e. before `npm run vendor` has run).
+// Resolve the dsh root to run: the caller's resolved runtime root wins (dev
+// workspace build / packaged extraction); fall back to the global npm install
+// as a last resort when neither was materialized yet.
 export function findDshRoot(vendorRoot) {
   if (vendorRoot && existsSync(join(vendorRoot, 'lib', 'bin.js'))) return vendorRoot;
   return findGlobalDshRoot();

@@ -1,8 +1,10 @@
-// Pre-running surface: a calm, large boot screen — brand mark with an orbiting
+// Pre-running surface: a slim frameless-window strip (drag region + window
+// controls) above a calm, large boot screen — brand mark with an orbiting
 // ring while busy, one status line, quiet telemetry, and a collapsed log.
 // No telemetry grid, no raw log wall.
 import { useEffect, useRef } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { AlertTriangle, Minus, RefreshCw, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLX } from '@/dsh/store';
 import { cn } from '@/lib/utils';
@@ -38,8 +40,49 @@ export function StartupView() {
     .filter(Boolean)
     .join('  ·  ');
 
+  /** Window drag: pointer events -> IPC; the main process follows the cursor. */
+  function onStripPointerDown(e: ReactPointerEvent<HTMLElement>) {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    const startX = e.screenX;
+    const startY = e.screenY;
+    window.lx.win.dragStart();
+    const onMove = (ev: PointerEvent): void => {
+      window.lx.win.dragMove(ev.screenX - startX, ev.screenY - startY);
+    };
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.lx.win.dragEnd();
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto bg-background p-8">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {/* frameless strip: drag region + window controls */}
+      <div
+        className="flex h-9 shrink-0 items-center justify-end border-b border-sidebar-border bg-sidebar pr-1"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        onPointerDown={onStripPointerDown}
+        onDoubleClick={() => window.lx.win.max()}
+      >
+        <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => window.lx.win.min()}>
+            <Minus className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => window.lx.win.max()}>
+            <Square className="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:bg-err/12 hover:text-err" onClick={() => window.lx.win.close()}>
+            <X className="size-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto p-8">
       {/* ambient glow behind the mark */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <div className="size-72 rounded-full bg-brand-1/10 blur-3xl" />
@@ -138,6 +181,7 @@ export function StartupView() {
             )}
           </div>
         </details>
+      </div>
       </div>
     </div>
   );

@@ -29,12 +29,34 @@ export class DshBackend {
   baseUrl: string | null = null;
   dshVersion: string | null = null;
   client: DesktopClient | null = null;
-  // Preferred self-contained dsh copy (e.g. <app>/vendor/dsh). When set and present,
-  // the backend runs the vendored dsh instead of the global npm install.
+  // Preferred dsh runtime root (dev: the deepseek-harness workspace build;
+  // packaged: the %APPDATA%/LX-DSH/dsh extraction). When set and present, the
+  // backend runs that dsh instead of a global npm install.
   private vendorRoot: string | null = null;
 
   constructor(vendorRoot?: string) {
     this.vendorRoot = vendorRoot ?? null;
+  }
+
+  /** Called by main after ensureDshRuntime() resolves the runtime location. */
+  setVendorRoot(vendorRoot: string): void {
+    this.vendorRoot = vendorRoot;
+  }
+
+  /** Current vendor root (used by the plugin manager to locate dsh's bin.js). */
+  get vendorRootPath(): string | null {
+    return this.vendorRoot;
+  }
+
+  /** Surface a pre-boot note to UI listeners (e.g. "extracting dsh on first
+   *  run") so the startup view doesn't sit on 'idle' during slow one-time work. */
+  announce(detail: string): void {
+    if (this.state === 'idle' || this.state === 'failed') this.emit('starting', { detail });
+  }
+
+  /** Terminal failure before boot (e.g. extraction error). */
+  reportStartupError(error: string): void {
+    this.emit('failed', { error });
   }
 
   private child: ChildProcess | null = null;
@@ -145,7 +167,12 @@ export class DshBackend {
     const binJs = join(dshRoot, 'lib', 'bin.js');
     this.outBuf = '';
     this.errBuf = '';
-    const bannerP = this.watchBanner(BANNER_TIMEOUT_MS);
+    // Spawn BEFORE creating the banner promise: watchBanner registers an exit
+    // listener on the child, and it must see the real ChildProcess (previously
+    // it was called before assignment, so `this.child` was still null/old and
+    // the optional chain silently skipped — the exit listener was never attached
+    // to the actual process, leaving bannerP to wait out the full 120s timeout
+    // when the child died before printing the banner).
     this.child = spawn(nodePath, [binJs, '--profile', 'web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -157,12 +184,18 @@ export class DshBackend {
     this.child.on('error', (err) => {
       if (!this.killed) this.emit('failed', { error: String(err?.message ?? err) });
     });
+    const bannerP = this.watchBanner(this.child, BANNER_TIMEOUT_MS);
 
     let base: string;
     try {
       base = await bannerP;
     } catch (err: any) {
+      // If the child exited before the banner, onChildExit already drove
+      // scheduleRestart (armed this.restartTimer + emit 'starting'). Don't
+      // clobber that with 'failed' — let the restart proceed. Only emit failed
+      // for a genuine banner timeout where the child is still alive.
       this.killed = true;
+      if (this.restartTimer) return;
       this.killTree();
       this.emit('failed', { error: String(err?.message ?? err) });
       return;
@@ -227,7 +260,7 @@ export class DshBackend {
     this.emit('running', { detail: 'handshake ok: ' + JSON.stringify(describe?.result?.value ?? {}).slice(0, 200) });
   }
 
-  private watchBanner(timeoutMs: number): Promise<string> {
+  private watchBanner(child: ChildProcess, timeoutMs: number): Promise<string> {
     return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (fn: () => void): void => {
@@ -247,7 +280,10 @@ export class DshBackend {
         const url = rest.split(' ')[0].split('\n')[0];
         finish(() => resolve(url));
       }, 100);
-      this.child?.once('exit', (code) => {
+      // Reject early if the child dies before printing the banner — otherwise
+      // bannerP would wait the full timeout. onChildExit handles the restart,
+      // but this lets boot() stop waiting immediately.
+      child.once('exit', (code) => {
         finish(() => reject(new Error('backend exited (code ' + code + ') before banner. stderr tail: ' + this.errBuf.slice(-600))));
       });
     });

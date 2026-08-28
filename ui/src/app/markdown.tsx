@@ -5,6 +5,14 @@ import { Fragment, type ReactNode } from 'react';
 const BT = String.fromCharCode(96);
 const FENCE = BT + BT + BT;
 
+// A GFM table separator row: only pipes, colons, dashes, spaces — and it must
+// contain at least one pipe and one dash.
+function isTableSep(l: string): boolean {
+  const t = l.trim();
+  if (!t.includes('|') || !t.includes('-')) return false;
+  return /^[\s|:-]+$/.test(t);
+}
+
 function emphasis(text: string, keyBase: string): ReactNode[] {
   const out: ReactNode[] = [];
   const re = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
@@ -88,6 +96,47 @@ export function md(text: string): ReactNode {
           <pre className="overflow-x-auto px-3 py-2.5 font-mono text-[11.5px] leading-[1.65] text-secondary-foreground">
             {buf.join('\n')}
           </pre>
+        </div>,
+      );
+      continue;
+    }
+
+    // GFM table: a header row with pipes, followed by a separator row
+    // (| :--- | :---: | --- | etc.).
+    if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const parseRow = (l: string): string[] =>
+        l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((c) => c.trim());
+      const header = parseRow(line);
+      i += 2; // skip header + separator
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+        rows.push(parseRow(lines[i]));
+        i += 1;
+      }
+      blocks.push(
+        <div key={key++} className="my-2 overflow-x-auto rounded-md border border-sidebar-border">
+          <table className="w-full border-collapse text-[12.5px]">
+            <thead>
+              <tr>
+                {header.map((cell, j) => (
+                  <th key={j} className="border-b border-sidebar-border bg-surface-1 px-3 py-1.5 text-left font-semibold text-secondary-foreground">
+                    {inline(cell, 'th' + key + '-' + j)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, j) => (
+                <tr key={j}>
+                  {row.map((cell, k) => (
+                    <td key={k} className="border-b border-sidebar-border/60 px-3 py-1.5 text-foreground/90">
+                      {inline(cell, 'td' + key + '-' + j + '-' + k)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>,
       );
       continue;

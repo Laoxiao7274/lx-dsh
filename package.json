@@ -1,7 +1,7 @@
 {
   "name": "lx-dsh",
   "productName": "LX-DSH",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "commonjs",
   "description": "LX-DSH — native desktop client for DeepSeek Harness (dsh web)",
@@ -10,18 +10,16 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/dev.mjs",
-    "dev:src": "set LX_DSH_ROOT=..\\deepseek-harness\\apps\\cli&& node scripts/dev.mjs",
-    "start:src": "set LX_DSH_ROOT=..\\deepseek-harness\\apps\\cli&& node scripts/build.mjs && electron .",
     "start": "node scripts/build.mjs && electron .",
-    "vendor": "node scripts/vendor-dsh.mjs",
     "spike": "node scripts/wire-spike.mjs",
     "locate": "node shared/find-dsh.mjs",
     "icon": "node scripts/make-icon.mjs",
     "round-icon": "node scripts/make-rounded-icon.mjs",
-    "dist": "npm run build && electron-builder --win --dir && node scripts/post-vendor.mjs && set ELECTRON_BUILDER_COMPRESSION_LEVEL=0&& electron-builder --win nsis --prepackaged dist/win-unpacked",
-    "dist:fast": "npm run build && electron-builder --win --dir && node scripts/post-vendor.mjs && node scripts/make-portable.mjs",
-    "dist:update": "npm run build && electron-builder --win --dir && node scripts/post-vendor.mjs && node scripts/build-update.mjs",
-    "dist:full": "npm run build && electron-builder --win --dir && node scripts/post-vendor.mjs && set ELECTRON_BUILDER_COMPRESSION_LEVEL=0&& electron-builder --win nsis --prepackaged dist/win-unpacked && node scripts/build-update.mjs && node scripts/make-portable.mjs"
+    "dist": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && electron-builder --win nsis --prepackaged dist/win-unpacked",
+    "dist:fast": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && node scripts/make-portable.mjs",
+    "dist:update": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && node scripts/build-update.mjs",
+    "dist:full": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && electron-builder --win nsis --prepackaged dist/win-unpacked && node scripts/build-update.mjs && node scripts/make-portable.mjs",
+    "assemble": "node scripts/assemble-dist.mjs"
   },
   "devDependencies": {
     "electron": "^43.4.0",
@@ -41,7 +39,12 @@
       "ui/dist/**",
       "package.json"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "dist/dsh.zip",
+        "to": "dsh.zip"
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",

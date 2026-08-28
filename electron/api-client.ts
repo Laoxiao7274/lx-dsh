@@ -76,7 +76,11 @@ export async function createDesktopClient(baseUrl: string, contractRoot: string,
     ): AsyncGenerator<FrameMsg> {
       const ws = new WebSocket(toWs(this.base) + path);
       const END = Symbol('end');
+      // Head-index cursor over a plain array: push (O(1)) + index advance (O(1))
+      // instead of shift (O(n) per frame → O(N²) per batch at high frequency).
+      // Compacted periodically to bound memory.
       let queue: any[] = [];
+      let head = 0;
       let waiter: ((v: any) => void) | null = null;
       let opened = false;
       const push = (v: any): void => {
@@ -102,7 +106,18 @@ export async function createDesktopClient(baseUrl: string, contractRoot: string,
       if (signal) signal.addEventListener('abort', onAbort, { once: true });
       try {
         while (true) {
-          const v = queue.length ? queue.shift() : await new Promise<any>((r) => { waiter = r; });
+          let v: any;
+          if (head < queue.length) {
+            v = queue[head++];
+            // Compact the array when the consumed prefix is large enough to
+            // matter, to keep memory bounded over a long-lived stream.
+            if (head >= 256 && head * 2 >= queue.length) {
+              queue = queue.slice(head);
+              head = 0;
+            }
+          } else {
+            v = await new Promise<any>((r) => { waiter = r; });
+          }
           if (v === END) {
             if (!opened && !(signal && signal.aborted)) {
               throw new Error('stream ' + path + ' closed before open (fence rejection?)');

@@ -127,12 +127,6 @@ export const useLX = create<LXState>((set, get) => ({
         })();
       });
     }
-    if ((window.lx as any).debug?.onOpen) {
-      (window.lx as any).debug.onOpen((id: string) => {
-        console.log('[lx-ui] debug open session: ' + id);
-        void get().openSession(id);
-      });
-    }
     window.lx.backend.onEvent((e: BackendEvent) => {
       set((s) => ({ backend: { ...s.backend, ...e } }));
       if (e.state === 'running' && !get().describe) {
@@ -559,7 +553,7 @@ async function readUiThemePreference(): Promise<string> {
   const ns = (d.namespaces ?? []).find((n: { ns: string }) => n.ns === 'ui-theme');
   return (ns?.value as { preference?: string } | undefined)?.preference ?? 'system';
 }
-async function syncThemeFromSettings(): Promise<void> {
+export async function syncThemeFromSettings(): Promise<void> {
   try {
     const resolved = resolveTheme(await readUiThemePreference());
     document.documentElement.classList.toggle('dark', resolved === 'dark');

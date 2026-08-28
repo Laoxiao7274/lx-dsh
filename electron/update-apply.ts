@@ -49,6 +49,13 @@ export function launchApplyHelper(p: ApplyPayload): void {
   writeFileSync(deletedListPath, p.deleted.join('\n') + (p.deleted.length ? '\n' : ''));
 
   const procName = p.exeName.replace(/\.exe$/i, '');
+  // procName is interpolated into Get-Process/Stop-Process -Name args in the
+  // generated PowerShell. Whitelist it so a future dynamic exeName can never
+  // inject into the script (psEscape handles path placeholders, but procName
+  // is a bare substitution).
+  if (!/^[A-Za-z0-9._-]+$/.test(procName)) {
+    throw new Error('invalid process name for apply script: ' + procName);
+  }
   const exeFull = join(p.installDir, p.exeName);
 
   // Build the PowerShell script with placeholder substitution.
