@@ -4,6 +4,7 @@
 // kills the whole process tree (taskkill /t /f).
 import { spawn, execFileSync, ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
+import { app } from 'electron';
 import { findDshRoot, findNode, findContractRoot } from '../shared/find-dsh.mjs';
 import { createDesktopClient, DesktopClient, FrameMsg, StreamState } from './api-client.js';
 import { log, logQuiet } from './log.js';
@@ -151,7 +152,10 @@ export class DshBackend {
     let nodePath: string;
     let contractRoot: string;
     try {
-      dshRoot = findDshRoot(this.vendorRoot ?? undefined);
+      // A packaged build never falls back to the npm-global install: that copy
+      // is whatever official release was installed once, and running it made
+      // the app serve a stale UI while claiming to be current (0.3.0 incident).
+      dshRoot = findDshRoot(this.vendorRoot ?? undefined, { allowGlobal: !app.isPackaged });
       nodePath = findNode();
       contractRoot = findContractRoot(dshRoot);
       this.dshVersion = execFileSync(nodePath, [join(dshRoot, 'lib', 'bin.js'), '-V'], {

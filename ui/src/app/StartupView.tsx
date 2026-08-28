@@ -97,7 +97,7 @@ export function StartupView() {
           <BrandMark className="size-28" />
         </div>
         <div className="mt-7 text-2xl font-semibold tracking-tight">LX-DSH</div>
-        <div className="mt-1.5 text-[13px] text-muted-foreground">deepseek harness desktop</div>
+        <div className="mt-1.5 text-[13px] text-muted-foreground">LX-DSH 桌面工作台</div>
       </div>
 
       {/* one calm status line */}

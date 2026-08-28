@@ -14,7 +14,8 @@
 // is newer than our extraction marker (i.e. an app update brought a new dsh),
 // we re-extract.
 import { app } from 'electron';
-import { existsSync, execFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { log } from './log.js';
 
@@ -71,7 +72,13 @@ export function ensureDshRuntime(onExtracting?: () => void): string {
   mkdirSync(target, { recursive: true });
   // bsdtar (Windows 10 1803+) extracts standard zips natively and faster than
   // PowerShell Expand-Archive. 7za-produced store-mode zips are standard zips.
-  execFileSync('tar.exe', ['-xf', zip, '-C', target], { stdio: 'ignore', windowsHide: true });
+  // Capture stderr so a failed extraction names its cause instead of leaving
+  // an empty directory and a hung-looking startup view.
+  const extract = spawnSync('tar.exe', ['-xf', zip, '-C', target], { windowsHide: true, encoding: 'utf8' });
+  if (extract.error !== undefined) throw extract.error;
+  if (extract.status !== 0) {
+    throw new Error('dsh extraction failed (tar exit ' + String(extract.status) + '): ' + (extract.stderr ?? '').slice(-800));
+  }
   writeFileSync(marker, zipMtime);
   if (!existsSync(join(target, 'lib', 'bin.js'))) {
     throw new Error('dsh extraction incomplete: lib/bin.js missing under ' + target);

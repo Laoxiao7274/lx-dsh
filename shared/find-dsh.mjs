@@ -33,10 +33,18 @@ export function findGlobalDshRoot() {
 }
 
 // Resolve the dsh root to run: the caller's resolved runtime root wins (dev
-// workspace build / packaged extraction); fall back to the global npm install
-// as a last resort when neither was materialized yet.
-export function findDshRoot(vendorRoot) {
+// workspace build / packaged extraction). `allowGlobal` keeps the npm-global
+// install as a dev-time last resort; a PACKAGED build must never run it — the
+// global copy is whatever official release was installed once, which silently
+// replaced the app's own runtime and surfaced a stale UI (the 0.3.0 incident).
+export function findDshRoot(vendorRoot, { allowGlobal = true } = {}) {
   if (vendorRoot && existsSync(join(vendorRoot, 'lib', 'bin.js'))) return vendorRoot;
+  if (!allowGlobal) {
+    throw new Error(
+      'packaged runtime unresolved: the extracted dsh is missing lib/bin.js. '
+      + 'Delete %APPDATA%/LX-DSH/dsh and relaunch so resources/dsh.zip re-extracts.',
+    );
+  }
   return findGlobalDshRoot();
 }
 
