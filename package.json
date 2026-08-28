@@ -40,12 +40,6 @@
       "ui/dist/**",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "dist/dsh",
-        "to": "dsh"
-      }
-    ],
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
@@ -59,6 +53,7 @@
     "publish": {
       "provider": "generic",
       "url": "http://123.57.129.111/win"
-    }
+    },
+    "afterPack": "scripts/after-pack.cjs"
   }
 }
