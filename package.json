@@ -55,6 +55,10 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "http://123.57.129.111/win"
     }
   }
 }

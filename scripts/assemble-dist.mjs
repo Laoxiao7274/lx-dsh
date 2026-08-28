@@ -103,6 +103,90 @@ function restoreLegacyHoists() {
   if (restored.length > 0) console.log(`[assemble] restored legacy deploy hoists: ${restored.join(', ')}`);
 }
 
+// ── 3b. close the workspace dependency closure ──────────────────────────────
+// pnpm's legacy hoister resolves workspace packages that are only TRANSITIVE
+// dependencies of other workspace packages (e.g. @deepseek-ai/cosmokit under
+// cordis) from the monorepo root — a standalone deployed tree has no root, so
+// those imports fail at boot. Index every workspace package by name, then walk
+// the deployed manifests and copy any missing @deepseek-ai/* package straight
+// from the source checkout until the closure stops growing.
+
+function indexWorkspacePackages() {
+  const byName = new Map();
+  for (const area of ['packages', 'vendor', 'apps']) {
+    const base = join(dshSrc, area);
+    if (!existsSync(base)) continue;
+    for (const entry of readdirSync(base, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidates = [join(base, entry.name)];
+      // packages/<group>/<pkg> layout: one extra level for group directories.
+      const nested = join(base, entry.name);
+      for (const sub of readdirSync(nested, { withFileTypes: true })) {
+        if (!sub.isDirectory()) continue;
+        candidates.push(join(nested, sub.name));
+      }
+      for (const dir of candidates) {
+        const manifestPath = join(dir, 'package.json');
+        if (!existsSync(manifestPath)) continue;
+        try {
+          const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+          if (typeof manifest.name === 'string' && manifest.name.startsWith('@deepseek-ai/') && !byName.has(manifest.name)) {
+            byName.set(manifest.name, dir);
+          }
+        } catch { /* not a readable package manifest */ }
+      }
+    }
+  }
+  return byName;
+}
+
+function restoreWorkspaceClosure() {
+  const byName = indexWorkspacePackages();
+  const deployedScope = join(outDir, 'node_modules', '@deepseek-ai');
+  const present = new Set(existsSync(deployedScope) ? readdirSync(deployedScope) : []);
+  // Some workspace imports are dynamic/speculative and never appear in any
+  // manifest (dsh-app-boot → cordis-plugin-group); scan the deployed JS text
+  // for @deepseek-ai/* specifiers instead of trusting the manifests alone.
+  const referenced = new Set();
+  const scanJs = (dir, depth) => {
+    if (depth > 6) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === 'types') continue;
+        scanJs(path, depth + 1);
+      } else if (/\.(mjs|cjs|js)$/.test(entry.name)) {
+        const text = readFileSync(path, 'utf8');
+        for (const match of text.matchAll(/@deepseek-ai\/([a-z0-9-]+)/g)) {
+          // A name ending in '-' is the static prefix of a template-literal
+          // specifier (`@deepseek-ai/dsh-${kind}`) — not a real package.
+          if (!match[1].endsWith('-')) referenced.add(`@deepseek-ai/${match[1]}`);
+        }
+      }
+    }
+  };
+  for (const name of present) scanJs(join(deployedScope, name), 0);
+  const missing = [...referenced].filter(name => !present.has(name.slice('@deepseek-ai/'.length)));
+  const copied = [];
+  while (missing.length > 0) {
+    const name = missing.shift();
+    const dir = byName.get(name);
+    if (dir === undefined) {
+      // A specifier with no workspace package is a dead reference (a planned
+      // or renamed plugin behind a conditional import); the boot smoke below
+      // decides whether anything actually reachable is broken.
+      console.warn(`[assemble] skipping referenced-but-absent workspace package: ${name}`);
+      continue;
+    }
+    const destination = join(deployedScope, name.slice('@deepseek-ai/'.length));
+    copyDereferenced(dir, destination);
+    present.add(name.slice('@deepseek-ai/'.length));
+    copied.push(name);
+    scanJs(destination, 0);
+  }
+  if (copied.length > 0) console.log(`[assemble] restored workspace closure: ${copied.join(', ')}`);
+}
+
 function findSymlink(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -224,7 +308,16 @@ function sanity() {
   let packages = 0;
   const scopeDir = join(outDir, 'node_modules', '@deepseek-ai');
   if (existsSync(scopeDir)) packages = readdirSync(scopeDir).length;
-  console.log(`[assemble] sanity ok — ${packages} @deepseek-ai packages, all key entries present`);
+  // Boot smoke: module resolution is the one thing file checks cannot prove —
+  // the 0.3.0 release shipped a tree that was missing @deepseek-ai/cosmokit
+  // and only failed at spawn time on the user's machine.
+  const probe = spawnSync(process.execPath, [join(outDir, 'lib', 'bin.js'), '-V'], {
+    cwd: outDir, encoding: 'utf8', timeout: 120_000, windowsHide: true,
+  });
+  if (probe.status !== 0 || (probe.stderr ?? '').includes('ERR_MODULE_NOT_FOUND')) {
+    throw new Error(`[assemble] sanity failed: the deployed CLI does not boot\n${probe.stderr || probe.stdout || ''}`.slice(0, 2000));
+  }
+  console.log(`[assemble] sanity ok — ${packages} @deepseek-ai packages, CLI boots (dsh ${probe.stdout.trim()})`);
 }
 
 // ── main: build → deploy → repair → sanity → prune+zip ──────────────────────
@@ -235,6 +328,7 @@ buildFromSource();
 deploy();
 restoreLegacyHoists();
 materializeStagedLinks();
+restoreWorkspaceClosure();
 sanity();
 pruneAndZip();
 console.log(`[assemble] complete in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

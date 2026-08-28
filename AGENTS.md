@@ -11,6 +11,8 @@ pnpm run assemble       # harness 全量构建 + deploy → dist/dsh.zip（增�
 pnpm run dist:update    # build + assemble + electron-builder --dir + 更新包（增量 zip + latest.json）
 pnpm run dist:full      # 同上 + NSIS 全量安装包（发布用这个）
 node scripts/publish.mjs # 发布到更新服务器（读 package.json 版本 + RELEASE_NOTES.md）
+
+注意：assemble 的 restoreWorkspaceClosure 会扫描部署树 JS 里的 @deepseek-ai/* 引用并从源码补齐 legacy hoister 丢掉的 workspace 包（0.3.0 曾因此缺 24 个包，cosmokit/cordis-plugin-group 等），sanity 步骤含 CLI 启动冒烟——部署树跑不起来会直接 fail 构建。
 ```
 
 ## 发布流程
