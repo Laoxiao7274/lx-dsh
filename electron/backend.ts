@@ -31,8 +31,8 @@ export class DshBackend {
   dshVersion: string | null = null;
   client: DesktopClient | null = null;
   // Preferred dsh runtime root (dev: the deepseek-harness workspace build;
-  // packaged: the %APPDATA%/LX-DSH/dsh extraction). When set and present, the
-  // backend runs that dsh instead of a global npm install.
+  // packaged: resources/dsh/ shipped inside the installer). When set and
+  // present, the backend runs that dsh instead of a global npm install.
   private vendorRoot: string | null = null;
 
   constructor(vendorRoot?: string) {

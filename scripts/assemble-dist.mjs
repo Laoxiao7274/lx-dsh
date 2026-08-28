@@ -20,7 +20,7 @@
 //      launch)
 //
 // Usage:  npm run assemble [-- --skip-build]   (from the lx-dsh root)
-import { existsSync, readdirSync, statSync, rmSync, mkdirSync, cpSync, lstatSync, realpathSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, rmSync, mkdirSync, cpSync, lstatSync, realpathSync, readFileSync, renameSync } from 'node:fs';
 import { join, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -285,13 +285,28 @@ function pruneAndZip() {
   walk(stageDir);
   console.log(`[assemble] pruned tree: ${kept} files, ${(keptBytes / 1048576).toFixed(1)} MB`);
 
+  // Boot the PRUNED tree: the exclusion list is the last thing that touches
+  // the runtime before it ships, so the smoke test must run against exactly
+  // what ships — not the unpruned deploy tree.
+  const probe = spawnSync(process.execPath, [join(stageDir, 'lib', 'bin.js'), '-V'], {
+    cwd: stageDir, encoding: 'utf8', timeout: 120_000, windowsHide: true,
+  });
+  if (probe.status !== 0) {
+    throw new Error(`[assemble] pruned tree does not boot\n${probe.stderr || probe.stdout || ''}`.slice(0, 2000));
+  }
+  console.log(`[assemble] pruned tree boots (dsh ${probe.stdout.trim()})`);
+
   console.log('[assemble] zipping (store mode, no compression CPU)...');
   const sevenZip = find7za();
   execFileSync(sevenZip, ['a', '-bd', '-tzip', '-mx=0', outZip, join(stageDir, '*')], { stdio: 'inherit' });
 
   const size = statSync(outZip).size;
   console.log(`[assemble] done in ${((Date.now() - t0) / 1000).toFixed(1)}s — dist/dsh.zip ${(size / 1048576).toFixed(1)} MB`);
-  rmSync(stageDir, { recursive: true, force: true });
+  // The PRUNED tree becomes dist/dsh: electron-builder ships it directly as
+  // resources/dsh/ (plain files — no zip, no first-launch extraction). The
+  // zip stays only for the future delta-update flow.
+  rmSync(outDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });
+  renameSync(stageDir, outDir);
 }
 
 // ── 4. structural sanity ────────────────────────────────────────────────────

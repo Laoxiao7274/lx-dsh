@@ -1,7 +1,7 @@
 // Locate the global dsh install, a Node binary, and the wire-contract package.
 // Dependency-free; used by the M0 spike and (later) the Electron main process.
 // (The normal runtime path no longer lands here: dev runs the deepseek-harness
-// workspace build and packaged builds extract dist/dsh.zip — see dsh-runtime.ts.)
+// workspace build and packaged builds ship resources/dsh/ — see dsh-runtime.ts.)
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +33,7 @@ export function findGlobalDshRoot() {
 }
 
 // Resolve the dsh root to run: the caller's resolved runtime root wins (dev
-// workspace build / packaged extraction). `allowGlobal` keeps the npm-global
+// workspace build / packaged resources/dsh). `allowGlobal` keeps the npm-global
 // install as a dev-time last resort; a PACKAGED build must never run it — the
 // global copy is whatever official release was installed once, which silently
 // replaced the app's own runtime and surfaced a stale UI (the 0.3.0 incident).
@@ -41,8 +41,8 @@ export function findDshRoot(vendorRoot, { allowGlobal = true } = {}) {
   if (vendorRoot && existsSync(join(vendorRoot, 'lib', 'bin.js'))) return vendorRoot;
   if (!allowGlobal) {
     throw new Error(
-      'packaged runtime unresolved: the extracted dsh is missing lib/bin.js. '
-      + 'Delete %APPDATA%/LX-DSH/dsh and relaunch so resources/dsh.zip re-extracts.',
+      'packaged runtime unresolved: resources/dsh is missing lib/bin.js. '
+      + 'Reinstall LX-DSH so the runtime ships intact.',
     );
   }
   return findGlobalDshRoot();

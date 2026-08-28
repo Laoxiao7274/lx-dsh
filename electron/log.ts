@@ -1,8 +1,12 @@
 // File-first logger: the app must never depend on stdout being drained.
 // (Heavy console.log into an unread pipe/file blocks the main event loop on
 // Windows and freezes timers — learned the hard way during M1 bring-up.)
-import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+
+// Rotate app.log once it passes this size: a crash-restart loop once produced
+// a 543 MB app.log because every retry logged the same failure forever.
+const MAX_LOG_BYTES = 16 * 1024 * 1024;
 
 let logPath: string | null = null;
 let lastDir: string | null = null;
@@ -27,7 +31,15 @@ function ensurePath(): string | null {
 function writeLine(line: string): void {
   try {
     const p = ensurePath();
-    if (p) appendFileSync(p, line + '\n');
+    if (!p) return;
+    try {
+      if (existsSync(p) && statSync(p).size > MAX_LOG_BYTES) {
+        renameSync(p, p.replace(/\.log$/, '.old.log'));
+      }
+    } catch {
+      /* rotation is best-effort */
+    }
+    appendFileSync(p, line + '\n');
   } catch {
     /* logging must never throw */
   }

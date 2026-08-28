@@ -15,8 +15,8 @@ import { log } from './log.js';
 
 // The dsh runtime is built from the deepseek-harness source checkout: in dev
 // the backend runs the workspace build (deepseek-harness/apps/cli) directly;
-// in a packaged build the runtime ships as resources/dsh.zip and is extracted
-// to %APPDATA%/LX-DSH/dsh on first launch (electron/dsh-runtime.ts). The
+// in a packaged build the runtime ships as resources/dsh/ — plain files, no
+// extraction (electron/dsh-runtime.ts). The
 // resolved root is handed to the backend after ensureDshRuntime() completes.
 const backend = new DshBackend();
 let win: BrowserWindow | null = null;
@@ -485,23 +485,18 @@ if (!gotLock) {
         hideWebUI();
       }
     });
-    // Resolve (and, on first launch / after a dsh-bumping update, extract)
-    // the dsh runtime before booting the backend. In dev this returns the
-    // deepseek-harness workspace build; packaged it extracts resources/dsh.zip
-    // to %APPDATA%/LX-DSH/dsh. Blocks the main loop only during extraction
-    // (~30-60s, one time) — the startup view shows 'starting' meanwhile
-    // (announce fires, and the listeners above are already wired).
-    let dshRoot: string | null = null;
+    // Resolve the dsh runtime before booting the backend. In dev this is the
+    // deepseek-harness workspace build; packaged it is resources/dsh/ — plain
+    // files shipped inside the installer, no extraction step at all.
     try {
-      dshRoot = ensureDshRuntime(() => backend.announce('首次启动：正在解压 dsh 运行时…'));
+      const dshRoot = ensureDshRuntime();
       backend.setVendorRoot(dshRoot);
       log('dsh root: ' + dshRoot);
+      backend.start();
     } catch (err) {
+      // The startup view shows the error; the user can retry via tray / menu.
       backend.reportStartupError(String((err as Error)?.message ?? err));
     }
-    // Only boot if the runtime resolved; on failure the startup view shows
-    // the error and the user can retry via the tray / menu.
-    if (dshRoot) backend.start();
     // auto-update check (skipped in dev)
     initUpdater(win);
     try {
