@@ -19,7 +19,8 @@
     "dist:fast": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && node scripts/make-portable.mjs",
     "dist:update": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && node scripts/build-update.mjs",
     "dist:full": "npm run build && node scripts/assemble-dist.mjs && electron-builder --win --dir && electron-builder --win nsis --prepackaged dist/win-unpacked && node scripts/build-update.mjs && node scripts/make-portable.mjs",
-    "assemble": "node scripts/assemble-dist.mjs"
+    "assemble": "node scripts/assemble-dist.mjs",
+    "publish": "node scripts/publish.mjs"
   },
   "devDependencies": {
     "electron": "^43.4.0",
