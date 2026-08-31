@@ -294,13 +294,19 @@ function registerIpc(): void {
   ipcMain.handle('lx:copy', (_e, t: string) => {
     clipboard.writeText(String(t ?? ''));
   });
-  // Open a project folder in the desktop editor through the VS Code URL
-  // protocol (file form); a missing handler rejects and is reported to the UI.
-  ipcMain.handle('lx:openEditor', async (_e, cwd: string): Promise<{ ok: boolean, error?: string }> => {
+  // Open a project folder in the chosen desktop tool: VS Code and Cursor ride
+  // their registered URL protocols (file form); the explorer reveal opens the
+  // directory itself. A missing protocol handler rejects and is reported.
+  ipcMain.handle('lx:openEditor', async (_e, cwd: string, target: 'vscode' | 'cursor' | 'explorer'): Promise<{ ok: boolean, error?: string }> => {
     const dir = String(cwd ?? '').trim();
     if (dir === '') return { ok: false, error: 'no working directory' };
-    const uri = 'vscode://file/' + encodeURI(dir.replace(/\\/g, '/'));
     try {
+      if (target === 'explorer') {
+        const openError = await shell.openPath(dir);
+        return openError === '' ? { ok: true } : { ok: false, error: openError };
+      }
+      const scheme = target === 'cursor' ? 'cursor' : 'vscode';
+      const uri = `${scheme}://file/` + encodeURI(dir.replace(/\\/g, '/'));
       await shell.openExternal(uri);
       return { ok: true };
     } catch (err) {
