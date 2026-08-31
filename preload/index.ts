@@ -61,6 +61,10 @@ contextBridge.exposeInMainWorld('lx', {
   copy: (t: string): void => {
     void ipcRenderer.invoke('lx:copy', t);
   },
+  editor: {
+    open: (cwd: string): Promise<{ ok: boolean, error?: string }> =>
+      ipcRenderer.invoke('lx:openEditor', cwd),
+  },
   openPath: (p: string): Promise<string> => ipcRenderer.invoke('lx:api', 'host', 'openPath', { path: p }),
   plugins: {
     open: (): Promise<any> => ipcRenderer.invoke('lx:plugins:open'),

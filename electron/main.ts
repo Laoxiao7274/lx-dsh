@@ -294,6 +294,19 @@ function registerIpc(): void {
   ipcMain.handle('lx:copy', (_e, t: string) => {
     clipboard.writeText(String(t ?? ''));
   });
+  // Open a project folder in the desktop editor through the VS Code URL
+  // protocol (file form); a missing handler rejects and is reported to the UI.
+  ipcMain.handle('lx:openEditor', async (_e, cwd: string): Promise<{ ok: boolean, error?: string }> => {
+    const dir = String(cwd ?? '').trim();
+    if (dir === '') return { ok: false, error: 'no working directory' };
+    const uri = 'vscode://file/' + encodeURI(dir.replace(/\\/g, '/'));
+    try {
+      await shell.openExternal(uri);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('lx:win:min', () => win?.minimize());
   ipcMain.handle('lx:win:max', () => {
     if (!win) return;
