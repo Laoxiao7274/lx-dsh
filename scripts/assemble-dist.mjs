@@ -315,10 +315,15 @@ function sanity() {
   const required = [
     join(outDir, 'lib', 'bin.js'),
     join(outDir, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'dist', 'index.html'),
-    join(outDir, 'node_modules', '@deepseek-ai', 'dsh-host-apiproxy', 'lib', 'types', 'fetch', 'client.js'),
+    join(outDir, 'node_modules', '@deepseek-ai', 'dsh-web-app', 'lib', 'index.js'),
   ];
   for (const f of required) {
     if (!existsSync(f)) throw new Error(`[assemble] sanity failed: ${f} missing from the deployed tree`);
+  }
+  // The merged runtime must not carry the retired apiproxy layer.
+  const legacy = join(outDir, 'node_modules', '@deepseek-ai', 'dsh-host-apiproxy');
+  if (existsSync(legacy)) {
+    throw new Error('[assemble] sanity failed: deployed tree still carries dsh-host-apiproxy (pre-merge runtime)');
   }
   let packages = 0;
   const scopeDir = join(outDir, 'node_modules', '@deepseek-ai');

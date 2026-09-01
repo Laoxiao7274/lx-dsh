@@ -18,8 +18,9 @@ exports.default = async function afterPack(context) {
   rmSync(dest, { recursive: true, force: true });
   cpSync(src, dest, { recursive: true, dereference: true });
 
-  // Verify the copy: package count must match, and the wire contract — the
-  // file findContractRoot() resolves at every backend boot — must be present.
+  // Verify the copy: package count must match, and the runtime must be the
+  // post-merge (0.1.2+) tree — the retired apiproxy package must be absent
+  // and the API gateway (the wire stack the backend now resolves) present.
   const scope = (root) => join(root, 'node_modules', '@deepseek-ai');
   const count = (dir) => (existsSync(dir) ? readdirSync(dir).length : 0);
   const srcCount = count(scope(src));
@@ -27,9 +28,13 @@ exports.default = async function afterPack(context) {
   if (srcCount !== destCount || srcCount === 0) {
     throw new Error(`afterPack: runtime copy incomplete — ${destCount}/${srcCount} @deepseek-ai packages`);
   }
-  const contract = join(dest, 'node_modules', '@deepseek-ai', 'dsh-host-apiproxy', 'lib', 'types', 'fetch', 'client.js');
-  if (!existsSync(contract)) {
-    throw new Error('afterPack: wire contract dsh-host-apiproxy/lib/types/fetch/client.js missing from the shipped runtime');
+  const legacy = join(dest, 'node_modules', '@deepseek-ai', 'dsh-host-apiproxy');
+  if (existsSync(legacy)) {
+    throw new Error('afterPack: shipped runtime still carries dsh-host-apiproxy — assemble from the merged harness');
+  }
+  const pnpmStore = join(dest, 'node_modules', '.pnpm');
+  if (!existsSync(pnpmStore)) {
+    throw new Error('afterPack: shipped runtime lost its pnpm package layout — assemble from the merged harness');
   }
   let bytes = 0;
   const walk = (d) => {
