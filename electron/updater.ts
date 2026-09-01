@@ -76,6 +76,10 @@ let pendingMeta: UpdateMeta | null = null;
 // Whether the full NSIS installer fallback is armed (electron-updater)
 let fullFallbackArmed = false;
 
+// Whether the user's install click already started the full-installer
+// download (the check never auto-downloads; only the click does).
+let downloadStarted = false;
+
 function currentStatus(): UpdateStatus {
   return {
     checking,
@@ -235,7 +239,9 @@ function armFullFallback(win: BrowserWindow | null): void {
   if (fullFallbackArmed) return;
   fullFallbackArmed = true;
   log('updater: arming full NSIS fallback (electron-updater)');
-  autoUpdater.autoDownload = true;
+  // The check only reports availability; the download starts on the user's
+  // install click and completion installs without another click.
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.setFeedURL({ provider: 'generic', url: UPDATE_SERVER + '/win/' });
 
@@ -245,11 +251,17 @@ function armFullFallback(win: BrowserWindow | null): void {
   });
   autoUpdater.on('update-downloaded', (info) => {
     log('updater: full installer downloaded ' + info.version);
+    downloadStarted = false;
     downloadedVersion = info.version;
     broadcast(win, 'updater:downloaded', { version: info.version });
+    // Auto-install: the install click already consented by starting this
+    // download, so completion quits and runs the installer without waiting
+    // for a second click.
+    autoUpdater.quitAndInstall();
   });
   autoUpdater.on('error', (err) => {
     log('updater: electron-updater error: ' + String(err));
+    downloadStarted = false;
     lastError = String(err);
     broadcast(win, 'updater:error', { message: String(err) });
   });
@@ -305,7 +317,10 @@ export function initUpdater(win: BrowserWindow | null): void {
     return currentStatus();
   });
 
-  // IPC: renderer can apply immediately
+  // IPC: renderer triggers download+install. First click on an available
+  // update starts the download (the dialog shows its progress bar); the
+  // completion auto-installs without another click. A click while already
+  // downloading is a no-op, and a re-click after a failed download retries.
   ipcMain.handle('updater:install', () => {
     if (stagedUpdate) {
       log('updater: applying delta update on quit (user triggered)');
@@ -317,7 +332,16 @@ export function initUpdater(win: BrowserWindow | null): void {
       autoUpdater.quitAndInstall();
       return true;
     }
-    return false;
+    if (updateAvailable && !downloadStarted) {
+      downloadStarted = true;
+      log('updater: downloading full installer on user request');
+      void autoUpdater.downloadUpdate().catch((e) => {
+        downloadStarted = false;
+        log('updater: download request failed: ' + String(e));
+      });
+      return true;
+    }
+    return downloadStarted || updateAvailable;
   });
 
   // IPC: get current status
