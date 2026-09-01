@@ -39,9 +39,22 @@ if (USER === undefined || PASS === undefined) {
 
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const version = pkg.version
-const notesText = existsSync(join(root, 'RELEASE_NOTES.md'))
+// Only the releasing version's own section reaches the update dialog: the
+// file keeps one cumulative ledger, but the changelog a user sees while
+// updating from x.y.z must describe x.y.(z+1) alone, not the whole history.
+const fullNotes = existsSync(join(root, 'RELEASE_NOTES.md'))
   ? readFileSync(join(root, 'RELEASE_NOTES.md'), 'utf8').trim()
   : ''
+const sectionHeader = new RegExp(`^# LX-DSH ${version.replace(/\./g, '\\.')} 更新日志\\s*$`, 'm')
+const sectionStart = fullNotes.search(sectionHeader)
+const notesText = sectionStart === -1
+  ? fullNotes
+  : fullNotes
+    .slice(sectionStart)
+    .split(/^# LX-DSH \d+\.\d+\.\d+ 更新日志\s*$/m)
+    .filter(part => part.trim() !== '')
+    .at(0)
+    ?.trim() ?? ''
 const bullets = notesText.split('\n').filter(line => line.startsWith('- ')).map(line => line.slice(2).trim())
 
 const installer = process.argv[2] ?? join(root, 'dist', `LX-DSH Setup ${version}.exe`)

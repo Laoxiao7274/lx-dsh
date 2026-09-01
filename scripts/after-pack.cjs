@@ -45,5 +45,17 @@ exports.default = async function afterPack(context) {
     }
   };
   walk(dest);
+
+  // electron-builder only writes app-update.yml in a full publish build; the
+  // --dir + --prepackaged combo used here never materializes it, and the
+  // updater crashes at runtime reading it (ENOENT) even with setFeedURL.
+  // Write it ourselves next to the runtime.
+  const appUpdate = join(context.appOutDir, 'resources', 'app-update.yml');
+  if (!existsSync(appUpdate)) {
+    const { writeFileSync } = require('node:fs');
+    writeFileSync(appUpdate, 'provider: generic\nurl: http://123.57.129.111/win\n', 'utf8');
+    console.log('  • afterPack: wrote resources/app-update.yml (updater feed)');
+  }
+
   console.log(`  • afterPack: runtime shipped — ${destCount} @deepseek-ai packages, ${(bytes / 1048576).toFixed(1)} MB`);
 };
