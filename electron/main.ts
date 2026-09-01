@@ -260,26 +260,10 @@ function registerIpc(): void {
       if (err) return { rpcId: randomUUID(), result: { ok: false, error: { code: 'internal', message: err } } };
       return { rpcId: randomUUID(), result: { ok: true, value: { opened: true } } };
     }
-    const client = backend.client;
-    if (!client) throw new Error('backend not ready (state=' + backend.state + ')');
-    const d = (client as Record<string, unknown>)[domain] as Record<string, unknown> | undefined;
-    const fn = d ? (d[method] as ((p: unknown) => Promise<unknown>) | undefined) : undefined;
-    if (typeof fn !== 'function') throw new Error('unknown api: ' + domain + '.' + method);
-    try {
-      const receipt = await fn.call(d, payload ?? {});
-      if (domain === 'sessions' && method === 'history') {
-        const v = (receipt as any)?.result?.value;
-        log(
-          'history receipt: ok=' + (receipt as any)?.result?.ok +
-            ' events=' + (v && Array.isArray(v.events) ? v.events.length : String(typeof v?.events)) +
-            ' hasMore=' + (v?.hasMore ?? '?'),
-        );
-      }
-      return receipt;
-    } catch (err) {
-      log('api ' + domain + '.' + method + ' failed: ' + String((err as Error)?.message ?? err).slice(0, 500));
-      throw err;
-    }
+    // The 0.1.2 upstream removed the apiproxy RPC surface this forwarding
+    // relied on; the dsh web UI talks to the backend directly from the
+    // renderer. Only the local intercepts above still answer.
+    throw new Error('backend RPC retired: the dsh web UI connects to the backend directly');
   });
   ipcMain.handle('lx:backend', () => backend.info());
   ipcMain.handle('lx:appVersion', () => app.getVersion());
@@ -493,7 +477,6 @@ if (!gotLock) {
     };
     backend.onEvent((e) => sendIfAlive('backend:event', e));
     backend.onLog((l) => sendIfAlive('backend:log', l));
-    backend.onFrame((m) => sendIfAlive('backend:frame', m));
     // Load the real dsh web UI into the main webContents once the backend is
     // running (dropdowns/overlays are never clipped this way); fall back to the
     // LX-DSH startup shell while booting / failed.

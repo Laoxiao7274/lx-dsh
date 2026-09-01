@@ -1,12 +1,17 @@
 // Owns the dsh web backend child process:
-// locate -> spawn(--port 0) -> parse banner -> handshake (host.describe + both event
-// streams open) -> running. Crashes restart with 1s/3s/9s backoff (max 5). stop()
+// locate -> spawn(--port 0) -> parse banner -> probe (HTTP GET on the web
+// root) -> running. Crashes restart with 1s/3s/9s backoff (max 5). stop()
 // kills the whole process tree (taskkill /t /f).
+//
+// The 0.1.2 upstream removed the apiproxy RPC surface this shell used to
+// handshake with (host.describe + mux/host streams over AbstractApiClient).
+// The desktop shell no longer speaks RPC to the backend: the dsh web UI is
+// loaded straight into the main webContents and talks to the backend itself,
+// so the shell only needs the web server to answer.
 import { spawn, execFileSync, ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { app } from 'electron';
 import { findDshRoot, findNode, findContractRoot } from '../shared/find-dsh.mjs';
-import { createDesktopClient, DesktopClient, FrameMsg, StreamState } from './api-client.js';
 import { log, logQuiet } from './log.js';
 
 export type BackendState = 'idle' | 'starting' | 'handshaking' | 'running' | 'failed' | 'stopping';
@@ -19,7 +24,6 @@ export interface BackendEvent {
   detail?: string;
 }
 export interface BackendLogLine { stream: 'stdout' | 'stderr'; line: string }
-export interface FrameMsgEvent { stream: 'mux' | 'host'; frame: FrameMsg }
 
 const MAX_RESTARTS = 5;
 const BANNER_TIMEOUT_MS = 120000;
@@ -29,7 +33,6 @@ export class DshBackend {
   state: BackendState = 'idle';
   baseUrl: string | null = null;
   dshVersion: string | null = null;
-  client: DesktopClient | null = null;
   // Preferred dsh runtime root (dev: the deepseek-harness workspace build;
   // packaged: resources/dsh/ shipped inside the installer). When set and
   // present, the backend runs that dsh instead of a global npm install.
@@ -66,10 +69,8 @@ export class DshBackend {
   private killed = false;
   private restartCount = 0;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
-  private clientAbort: AbortController | null = null;
   private eventListeners: ((e: BackendEvent) => void)[] = [];
   private logListeners: ((l: BackendLogLine) => void)[] = [];
-  private frameListeners: ((m: FrameMsgEvent) => void)[] = [];
 
   onEvent(fn: (e: BackendEvent) => void): () => void {
     this.eventListeners.push(fn);
@@ -78,10 +79,6 @@ export class DshBackend {
   onLog(fn: (l: BackendLogLine) => void): () => void {
     this.logListeners.push(fn);
     return () => { this.logListeners = this.logListeners.filter((f) => f !== fn); };
-  }
-  onFrame(fn: (m: FrameMsgEvent) => void): () => void {
-    this.frameListeners.push(fn);
-    return () => { this.frameListeners = this.frameListeners.filter((f) => f !== fn); };
   }
   info(): BackendEvent {
     return {
@@ -114,14 +111,6 @@ export class DshBackend {
     }
   }
 
-  private emitFrame(stream: 'mux' | 'host', frame: FrameMsg): void {
-    // Frames can arrive at high frequency (dozens per second during active
-    // streaming). Logging every one with appendFileSync blocks the main
-    // process event loop and causes IPC backpressure. Only log frame errors,
-    // not routine frame traffic.
-    for (const l of this.frameListeners) { try { l({ stream, frame }); } catch { /* listener bug */ } }
-  }
-
   start(): void {
     if (this.state === 'starting' || this.state === 'handshaking' || this.state === 'running') return;
     this.restartCount = 0;
@@ -138,7 +127,6 @@ export class DshBackend {
     this.emit('stopping');
     if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = null; }
     this.killed = true;
-    this.abortClient();
     this.killTree();
     this.baseUrl = null;
     this.restartCount = 0;
@@ -150,14 +138,13 @@ export class DshBackend {
     this.emit('starting');
     let dshRoot: string;
     let nodePath: string;
-    let contractRoot: string;
     try {
       // A packaged build never falls back to the npm-global install: that copy
       // is whatever official release was installed once, and running it made
       // the app serve a stale UI while claiming to be current (0.3.0 incident).
       dshRoot = findDshRoot(this.vendorRoot ?? undefined, { allowGlobal: !app.isPackaged });
       nodePath = findNode();
-      contractRoot = findContractRoot(dshRoot);
+      findContractRoot(dshRoot);
       this.dshVersion = execFileSync(nodePath, [join(dshRoot, 'lib', 'bin.js'), '-V'], {
         encoding: 'utf8',
         windowsHide: true,
@@ -207,61 +194,21 @@ export class DshBackend {
     this.baseUrl = base;
     this.emit('handshaking');
 
-    const openStates = new Set<string>();
-    let openResolve: (() => void) | null = null;
-    const openP = new Promise<void>((r) => { openResolve = r; });
-    const hooks: { onStreamState: (s: StreamState) => void } = {
-      onStreamState: (s) => {
-        if (s.state === 'open') {
-          openStates.add(s.stream);
-          if (openStates.size === 2) openResolve?.();
-        }
-      },
-    };
-
-    let client: DesktopClient | null = null;
-    let describe: any = null;
+    // The web server answering on its root proves the backend is serving the
+    // web UI; the shell keeps no RPC client of its own (the dsh web UI talks
+    // to the backend directly from the renderer). The banner URL carries the
+    // launch token, whose GET answers 303 (it mints the browser session
+    // cookie) — both that and a direct 2xx count as serving.
     try {
-      client = await createDesktopClient(base, contractRoot, hooks);
-      describe = await client.host.describe({});
-      if (!describe?.result?.ok) throw new Error('host.describe answered not-ok');
+      const res = await fetch(base, { redirect: 'manual', signal: AbortSignal.timeout(OPEN_TIMEOUT_MS) });
+      if (!res.ok && res.status !== 303) throw new Error('web root answered HTTP ' + res.status);
     } catch (err: any) {
       this.killed = true;
       this.killTree();
       this.emit('failed', { error: 'handshake failed: ' + String(err?.message ?? err) });
       return;
     }
-
-    const ac = new AbortController();
-    this.clientAbort = ac;
-    const streamGuard = (name: string, p: Promise<unknown>): void => {
-      p.catch((e: any) => {
-        if (this.killed || ac.signal.aborted) return;
-        log('backend: ' + name + ' stream ended unexpectedly:', String(e?.message ?? e));
-        this.scheduleRestart(name + ' stream ended');
-      });
-    };
-    streamGuard('mux', (async () => {
-      for await (const f of client.events.mux({}, ac.signal)) this.emitFrame('mux', f);
-    })());
-    streamGuard('host', (async () => {
-      for await (const f of client.events.host({}, ac.signal)) this.emitFrame('host', f);
-    })());
-
-    try {
-      await Promise.race([
-        openP,
-        new Promise<void>((_, rej) => setTimeout(() => rej(new Error('event streams did not open in ' + OPEN_TIMEOUT_MS + 'ms')), OPEN_TIMEOUT_MS)),
-      ]);
-    } catch (err: any) {
-      ac.abort();
-      this.killed = true;
-      this.killTree();
-      this.emit('failed', { error: 'handshake failed: ' + String(err?.message ?? err) });
-      return;
-    }
-    this.client = client;
-    this.emit('running', { detail: 'handshake ok: ' + JSON.stringify(describe?.result?.value ?? {}).slice(0, 200) });
+    this.emit('running', { detail: 'web root answering on ' + base });
   }
 
   private watchBanner(child: ChildProcess, timeoutMs: number): Promise<string> {
@@ -295,13 +242,11 @@ export class DshBackend {
 
   private onChildExit(code: number | null): void {
     if (this.killed) return;
-    this.abortClient();
     if (this.state === 'failed' || this.state === 'stopping' || this.state === 'idle') return;
     this.scheduleRestart('backend exited (code ' + code + ')');
   }
 
   private scheduleRestart(reason: string): void {
-    this.abortClient();
     this.killTree();
     this.baseUrl = null;
     if (this.restartCount >= MAX_RESTARTS) {
@@ -314,11 +259,6 @@ export class DshBackend {
     this.emit('starting', { detail: reason });
     this.restartTimer = setTimeout(() => void this.boot(), delay);
     (this.restartTimer as { unref?: () => void }).unref?.();
-  }
-
-  private abortClient(): void {
-    if (this.clientAbort) { this.clientAbort.abort(); this.clientAbort = null; }
-    this.client = null;
   }
 
   private killTree(): void {

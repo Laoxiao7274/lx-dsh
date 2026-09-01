@@ -61,9 +61,14 @@ export function findNode() {
 }
 
 export function findContractRoot(dshRoot) {
-  const c = join(dshRoot, 'node_modules', '@deepseek-ai', 'dsh-host-apiproxy');
-  if (existsSync(join(c, 'lib', 'types', 'fetch', 'client.js'))) return c;
-  throw new Error('wire contract @deepseek-ai/dsh-host-apiproxy not found under ' + dshRoot);
+  // Since upstream 0.1.2 the apiproxy RPC layer is retired; a tree that still
+  // carries it is a pre-merge dsh (0.1.1 or older) whose wire stack this
+  // shell no longer speaks. Absence of the package is the version marker.
+  const legacy = join(dshRoot, 'node_modules', '@deepseek-ai', 'dsh-host-apiproxy');
+  if (existsSync(legacy)) {
+    throw new Error('dsh under ' + dshRoot + ' is pre-0.1.2 (still ships dsh-host-apiproxy) — this build needs the merged runtime');
+  }
+  return dshRoot;
 }
 
 // CLI: node shared/find-dsh.mjs
