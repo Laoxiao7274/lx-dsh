@@ -58,11 +58,6 @@ contextBridge.exposeInMainWorld('lx', {
   webview: (): void => {
     void ipcRenderer.invoke('lx:webview');
   },
-  quick: {
-    open: (): void => {
-      void ipcRenderer.invoke('lx:quick:open');
-    },
-  },
   copy: (t: string): void => {
     void ipcRenderer.invoke('lx:copy', t);
   },

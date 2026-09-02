@@ -182,9 +182,6 @@ function buildMenu(): void {
     {
       label: 'Backend',
       submenu: [
-        // openQuickAnswers no-ops until the backend URL exists; the app menu
-        // is built once at boot, so it cannot track backend readiness.
-        { label: '快问快答', click: () => openQuickAnswers() },
         { label: 'Restart backend', click: () => backend.restart() },
         { label: 'Open web view', click: () => openWebview() },
         { label: 'Open in system browser', click: () => { if (backend.baseUrl) void shell.openExternal(backend.baseUrl); } },
@@ -218,7 +215,6 @@ function buildTray(): void {
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: 'Show / hide LX-DSH', click: () => toggleWindow() },
-        { label: '快问快答', enabled: !!backend.baseUrl, click: () => openQuickAnswers() },
         { label: 'Open web view', enabled: !!backend.baseUrl, click: () => openWebview() },
         {
           label: 'Copy backend URL',
@@ -369,51 +365,6 @@ function registerIpc(): void {
     return true;
   });
 
-  // Quick-answers window: a standalone BrowserWindow pinned to a
-  // quick-answers-preset session. It loads the same dsh web UI (backend URL +
-  // '#quick' hash); the UI side recognizes the hash and boots straight into a
-  // fresh quick-answers session. Its own partition isolates the web UI's
-  // localStorage from the main window, so the ephemeral session selection
-  // never clobbers the main window's restored one.
-  let quickWin: BrowserWindow | null = null;
-  function openQuickAnswers(): void {
-    if (!backend.baseUrl) return;
-    if (quickWin && !quickWin.isDestroyed()) {
-      quickWin.focus();
-      return;
-    }
-    quickWin = new BrowserWindow({
-      width: 520,
-      height: 680,
-      minWidth: 380,
-      minHeight: 420,
-      resizable: true,
-      minimizable: true,
-      maximizable: false,
-      title: '快问快答',
-      frame: false,
-      parent: win ?? undefined,
-      modal: false,
-      autoHideMenuBar: true,
-      backgroundColor: '#ffffff',
-      show: false,
-      webPreferences: {
-        preload: join(__dirname, 'index.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        partition: 'lx-quick-answers',
-      },
-    });
-    quickWin.once('ready-to-show', () => quickWin?.show());
-    void quickWin.loadURL(backend.baseUrl + '#quick');
-    quickWin.on('closed', () => { quickWin = null; });
-  }
-
-  ipcMain.handle('lx:quick:open', () => {
-    openQuickAnswers();
-    return true;
-  });
   ipcMain.handle('lx:plugins:list', async () => {
     try {
       const profileDir = join(dshHome, 'profiles', 'web');
