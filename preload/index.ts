@@ -58,6 +58,19 @@ contextBridge.exposeInMainWorld('lx', {
   webview: (): void => {
     void ipcRenderer.invoke('lx:webview');
   },
+  settings: {
+    /** Current LX-DSH settings snapshot incl. live remote-connection state. */
+    get: (): Promise<any> => ipcRenderer.invoke('lx:settings'),
+    /** Toggle the local backend's LAN bind (restarts the local backend). */
+    setLanBind: (enabled: boolean): Promise<any> => ipcRenderer.invoke('lx:settings:lanBind', enabled),
+  },
+  remote: {
+    /** Validate + connect to a remote backend (address + access key), persisting it. */
+    connect: (address: string, token: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('lx:remote:connect', address, token),
+    /** Drop the remote connection and boot the local backend again. */
+    disconnect: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('lx:remote:disconnect'),
+  },
   copy: (t: string): void => {
     void ipcRenderer.invoke('lx:copy', t);
   },

@@ -22,6 +22,8 @@ export interface BackendEvent {
   dshVersion?: string;
   error?: string;
   detail?: string;
+  /** Present when the web UI is served by a remote backend this shell connected to. */
+  remoteUrl?: string;
 }
 export interface BackendLogLine { stream: 'stdout' | 'stderr'; line: string }
 
@@ -37,9 +39,23 @@ export class DshBackend {
   // packaged: resources/dsh/ shipped inside the installer). When set and
   // present, the backend runs that dsh instead of a global npm install.
   private vendorRoot: string | null = null;
+  // Bind host for the spawned backend: '127.0.0.1' (default, loopback only)
+  // or '0.0.0.0' (LAN serving; the user must allow the firewall prompt).
+  private bindHost: '127.0.0.1' | '0.0.0.0';
 
-  constructor(vendorRoot?: string) {
+  constructor(vendorRoot?: string, opts: { bindHost?: '127.0.0.1' | '0.0.0.0' } = {}) {
     this.vendorRoot = vendorRoot ?? null;
+    this.bindHost = opts.bindHost ?? '127.0.0.1';
+  }
+
+  /** Change the bind host for the next boot (the caller restarts the backend). */
+  setBindHost(host: '127.0.0.1' | '0.0.0.0'): void {
+    this.bindHost = host;
+  }
+
+  /** The bind host the next boot will use. */
+  get currentBindHost(): '127.0.0.1' | '0.0.0.0' {
+    return this.bindHost;
   }
 
   /** Called by main after ensureDshRuntime() resolves the runtime location. */
@@ -164,7 +180,7 @@ export class DshBackend {
     // the optional chain silently skipped — the exit listener was never attached
     // to the actual process, leaving bannerP to wait out the full 120s timeout
     // when the child died before printing the banner).
-    this.child = spawn(nodePath, [binJs, '--profile', 'web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
+    this.child = spawn(nodePath, [binJs, '--profile', 'web', '--host', this.bindHost, '--port', '0', '--no-open'], {
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

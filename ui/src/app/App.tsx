@@ -12,11 +12,16 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { useLX, syncThemeFromSettings } from '@/dsh/store';
 import { PluginView } from './PluginView';
+import { RemoteView } from './RemoteView';
 import { StartupView } from './StartupView';
 
-// Hash route: #plugins opens the plugin manager as a standalone window.
-function isPluginWindow(): boolean {
-  return typeof window !== 'undefined' && window.location.hash === '#plugins';
+// Hash routes: #plugins opens the plugin manager, #remote the remote-backend
+// connection window (both standalone child windows).
+function windowRoute(): 'plugins' | 'remote' | null {
+  if (typeof window === 'undefined') return null;
+  if (window.location.hash === '#plugins') return 'plugins';
+  if (window.location.hash === '#remote') return 'remote';
+  return null;
 }
 
 /** Plugin manager standalone window — syncs theme like the titlebar does. */
@@ -52,7 +57,7 @@ function PluginWindow() {
 }
 
 export default function App() {
-  const pluginMode = isPluginWindow();
+  const route = windowRoute();
   const running = useLX((s) => s.backend.state === 'running');
   const theme = useLX((s) => s.theme);
   useEffect(() => {
@@ -60,8 +65,20 @@ export default function App() {
   }, []);
 
   // Plugin manager standalone window: full-screen PluginView, no titlebar.
-  if (pluginMode) {
+  if (route === 'plugins') {
     return <PluginWindow />;
+  }
+
+  // Remote-backend connection window: full-screen RemoteView, no titlebar.
+  if (route === 'remote') {
+    return (
+      <TooltipProvider delayDuration={250}>
+        <div className="h-screen overflow-hidden bg-background text-foreground">
+          <RemoteView onClose={() => window.close()} />
+        </div>
+        <Toaster position="bottom-right" theme={theme} richColors closeButton />
+      </TooltipProvider>
+    );
   }
 
   return (

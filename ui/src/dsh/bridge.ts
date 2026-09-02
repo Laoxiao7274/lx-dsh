@@ -13,6 +13,14 @@ export interface LxBridge {
   };
   win: { min(): void; max(): void; close(): void };
   webview(): void;
+  settings: {
+    get(): Promise<{ remote: { url: string } | null; lanBind: boolean; connected: boolean }>;
+    setLanBind(enabled: boolean): Promise<{ ok: boolean }>;
+  };
+  remote: {
+    connect(address: string, token: string): Promise<{ ok: boolean; error?: string }>;
+    disconnect(): Promise<{ ok: boolean }>;
+  };
   copy(text: string): void;
   openPath(p: string): Promise<string>;
   plugins: {

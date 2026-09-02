@@ -12,6 +12,7 @@ import { DshBackend } from './backend.js';
 import { ensureDshRuntime } from './dsh-runtime.js';
 import { initUpdater } from './updater.js';
 import { log } from './log.js';
+import { composeRemoteUrl, readSettings, writeSettings } from './settings.js';
 
 // The dsh runtime is built from the deepseek-harness source checkout: in dev
 // the backend runs the workspace build (deepseek-harness/apps/cli) directly;
@@ -23,6 +24,8 @@ let win: BrowserWindow | null = null;
 let webview: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
+/** Remote-backend mode: when set, the web UI is served by this URL instead of a spawned local backend. */
+let remoteMode: { url: string } | null = null;
 
 let webUILoadedUrl: string | null = null;
 // what the main webContents currently shows, so we never abort an in-flight load
@@ -59,7 +62,7 @@ function showWebUI(baseUrl: string): void {
   // The hosted web UI fills the window: there is no titlebar overlay, so no
   // inset applies — the shell's window chrome lives inside the web UI itself
   // (ui-lx-shell's Session Header chrome + drag region).
-  if (webUILoadedUrl === baseUrl) return; // already showing — never abort an in-flight load
+  if (webUILoadedUrl === baseUrl && isWebUiShowing(baseUrl)) return; // already showing — never abort an in-flight load
   webUILoadedUrl = baseUrl;
   showing = 'webui';
   log('webui loadURL: ' + baseUrl);
@@ -72,6 +75,20 @@ function showWebUI(baseUrl: string): void {
   });
   void wc.loadURL(baseUrl)
     .catch((e: unknown) => log('webui loadURL error: ' + String(e)));
+}
+
+/**
+ * The cached `webUILoadedUrl` alone can go stale when the webContents was
+ * navigated elsewhere (shell reload, dev navigation). Serving is real only
+ * while the live document's origin still matches the web UI's.
+ */
+function isWebUiShowing(baseUrl: string): boolean {
+  if (!win || win.isDestroyed()) return false;
+  try {
+    return new URL(win.webContents.getURL()).origin === new URL(baseUrl).origin;
+  } catch {
+    return false;
+  }
 }
 
 function hideWebUI(): void {
@@ -140,7 +157,8 @@ function createWindow(): void {
 }
 
 function openWebview(): void {
-  if (!backend.baseUrl) return;
+  const url = remoteMode?.url ?? backend.baseUrl;
+  if (!url) return;
   if (webview && !webview.isDestroyed()) {
     webview.show();
     webview.focus();
@@ -154,10 +172,122 @@ function openWebview(): void {
     ...(existsSync(iconPath()) ? { icon: iconPath() } : {}),
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
-  void webview.loadURL(backend.baseUrl);
+  void webview.loadURL(url);
   webview.on('closed', () => {
     webview = null;
   });
+}
+
+// ── Remote-backend mode ──────────────────────────────────────────────────────
+// The shell either spawns its own local dsh backend or connects to another
+// backend's web UI by URL (address + access key, both shown in that
+// backend's settings → 外网访问). Connected clients fully share that backend's
+// sessions, live streaming, and control — the multi-client story.
+
+/** Probe one remote backend URL (the authenticated root). */
+async function validateRemote(url: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
+    // 303 = the token-minting redirect; 2xx = already-cooked serving.
+    if (res.ok || res.status === 303) return { ok: true };
+    return { ok: false, error: `远端返回 HTTP ${res.status}` };
+  } catch (err) {
+    return { ok: false, error: `连接失败：${String((err as Error)?.message ?? err)}` };
+  }
+}
+
+/** Emit the backend event carrying the remote mode so the shell hides / the web UI loads. */
+function emitRemoteState(): void {
+  if (win === null || win.isDestroyed()) return;
+  const payload = remoteMode === null
+    ? undefined
+    : { state: 'running' as const, baseUrl: remoteMode.url, remoteUrl: remoteMode.url };
+  try {
+    if (payload !== undefined) win.webContents.send('backend:event', payload);
+  } catch (err) {
+    log('remote state send failed: ' + String(err));
+  }
+}
+
+/** Connect to a remote backend URL and persist the choice. */
+async function connectRemote(url: string): Promise<{ ok: boolean; error?: string }> {
+  const probe = await validateRemote(url);
+  if (!probe.ok) {
+    if (remoteMode === null) backend.reportStartupError(`远端后端不可用 — ${probe.error}`);
+    return { ok: false, error: probe.error };
+  }
+  remoteMode = { url };
+  const settings = readSettings();
+  writeSettings({ ...settings, remote: { url } });
+  // A local backend that was running is superseded: stop it so only the
+  // remote connection serves this shell.
+  if (backend.state !== 'idle' && backend.state !== 'stopping') backend.stop();
+  log('remote backend connected: ' + url);
+  showWebUI(url);
+  emitRemoteState();
+  buildTray();
+  buildMenu();
+  return { ok: true };
+}
+
+/** Drop the remote connection and boot the local backend again. */
+function disconnectRemote(): void {
+  remoteMode = null;
+  const settings = readSettings();
+  writeSettings({ ...settings, remote: null });
+  hideWebUI();
+  log('remote backend disconnected — starting local backend');
+  startLocalBackend(settings);
+  buildTray();
+  buildMenu();
+}
+
+/** Boot the local backend honoring the LAN-bind setting. */
+function startLocalBackend(settings: ReturnType<typeof readSettings>): void {
+  backend.setBindHost(settings.lanBind ? '0.0.0.0' : '127.0.0.1');
+  try {
+    const dshRoot = ensureDshRuntime();
+    backend.setVendorRoot(dshRoot);
+    log('dsh root: ' + dshRoot);
+    backend.start();
+  } catch (err) {
+    backend.reportStartupError(String((err as Error)?.message ?? err));
+  }
+}
+
+/** Remote-connect manager window: the startup shell routed to #remote. */
+let remoteWin: BrowserWindow | null = null;
+function openRemoteConnect(): void {
+  if (remoteWin && !remoteWin.isDestroyed()) {
+    remoteWin.focus();
+    return;
+  }
+  remoteWin = new BrowserWindow({
+    width: 620,
+    height: 560,
+    resizable: true,
+    minimizable: true,
+    title: '连接远端后端',
+    frame: false,
+    parent: win ?? undefined,
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, 'index.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  remoteWin.once('ready-to-show', () => remoteWin?.show());
+  const pluginUrl = process.env.LX_DSH_DEV_URL;
+  if (pluginUrl) {
+    void remoteWin.loadURL(pluginUrl + '#remote');
+  } else {
+    void remoteWin.loadFile(join(__dirname, '..', 'ui', 'dist', 'index.html'), { hash: 'remote' });
+  }
+  remoteWin.on('closed', () => { remoteWin = null; });
 }
 
 function toggleWindow(): void {
@@ -182,9 +312,20 @@ function buildMenu(): void {
     {
       label: 'Backend',
       submenu: [
-        { label: 'Restart backend', click: () => backend.restart() },
-        { label: 'Open web view', click: () => openWebview() },
-        { label: 'Open in system browser', click: () => { if (backend.baseUrl) void shell.openExternal(backend.baseUrl); } },
+        { label: 'Restart backend', enabled: remoteMode === null, click: () => backend.restart() },
+        { label: '连接远端后端…', click: () => openRemoteConnect() },
+        {
+          label: '断开远端，使用本地后端',
+          enabled: remoteMode !== null,
+          click: () => { disconnectRemote(); },
+        },
+        { type: 'separator' },
+        { label: 'Open web view', enabled: !!backend.baseUrl || remoteMode !== null, click: () => openWebview() },
+        {
+          label: 'Open in system browser',
+          enabled: !!backend.baseUrl || remoteMode !== null,
+          click: () => { const url = remoteMode?.url ?? backend.baseUrl; if (url) void shell.openExternal(url); },
+        },
       ],
     },
     {
@@ -210,21 +351,31 @@ function buildTray(): void {
   tray = new Tray(trayIcon);
   const rebuild = (): void => {
     const port = backend.baseUrl ? backend.baseUrl.split(':').pop() : '';
-    if (tray) tray.setToolTip('LX-DSH — ' + backend.state + (port ? ' : ' + port : ''));
+    const remote = remoteMode !== null ? `remote ${new URL(remoteMode.url).host}` : '';
+    if (tray) tray.setToolTip('LX-DSH — ' + (remote !== '' ? remote : backend.state + (port ? ' : ' + port : '')));
     if (!tray) return;
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: 'Show / hide LX-DSH', click: () => toggleWindow() },
-        { label: 'Open web view', enabled: !!backend.baseUrl, click: () => openWebview() },
+        { label: 'Open web view', enabled: !!backend.baseUrl || remoteMode !== null, click: () => openWebview() },
         {
           label: 'Copy backend URL',
-          enabled: !!backend.baseUrl,
+          enabled: !!backend.baseUrl || remoteMode !== null,
           click: () => {
-            if (backend.baseUrl) clipboard.writeText(backend.baseUrl);
+            const url = remoteMode?.url ?? backend.baseUrl;
+            if (url) clipboard.writeText(url);
           },
         },
         { type: 'separator' },
-        { label: 'Restart backend', click: () => backend.restart() },
+        { label: '连接远端后端…', click: () => openRemoteConnect() },
+        {
+          label: '断开远端，使用本地后端',
+          enabled: remoteMode !== null,
+          click: () => { disconnectRemote(); },
+        },
+        ...(remoteMode === null ? [
+          { label: 'Restart backend', click: () => backend.restart() },
+        ] : [] as Electron.MenuItemConstructorOptions[]),
         { type: 'separator' },
         {
           label: 'Quit LX-DSH',
@@ -265,11 +416,49 @@ function registerIpc(): void {
     // renderer. Only the local intercepts above still answer.
     throw new Error('backend RPC retired: the dsh web UI connects to the backend directly');
   });
-  ipcMain.handle('lx:backend', () => backend.info());
+  ipcMain.handle('lx:backend', () => {
+    if (remoteMode !== null) {
+      return { state: 'running', baseUrl: remoteMode.url, remoteUrl: remoteMode.url };
+    }
+    return backend.info();
+  });
   ipcMain.handle('lx:appVersion', () => app.getVersion());
   ipcMain.handle('lx:restart', () => {
     backend.restart();
     return true;
+  });
+  // ── Remote-backend mode + local settings ────────────────────────────────
+  ipcMain.handle('lx:settings', () => {
+    const settings = readSettings();
+    return {
+      remote: remoteMode !== null ? { url: remoteMode.url } : settings.remote,
+      lanBind: settings.lanBind,
+      connected: remoteMode !== null,
+    };
+  });
+  ipcMain.handle('lx:remote:compose', (_e, address: string, token: string) => {
+    return composeRemoteUrl(String(address ?? ''), String(token ?? ''));
+  });
+  ipcMain.handle('lx:remote:connect', async (_e, address: string, token: string) => {
+    const composed = composeRemoteUrl(String(address ?? ''), String(token ?? ''));
+    if ('error' in composed) return { ok: false, error: composed.error };
+    return connectRemote(composed.url);
+  });
+  ipcMain.handle('lx:remote:disconnect', () => {
+    if (remoteMode === null) return { ok: true };
+    disconnectRemote();
+    return { ok: true };
+  });
+  ipcMain.handle('lx:settings:lanBind', (_e, enabled: boolean) => {
+    const settings = readSettings();
+    writeSettings({ ...settings, lanBind: enabled === true });
+    if (remoteMode === null) {
+      // Rebind needs a backend restart; do it immediately so the toggle is
+      // observable (the shell shows the boot state again).
+      backend.stop();
+      setTimeout(() => startLocalBackend(readSettings()), 300);
+    }
+    return { ok: true };
   });
   ipcMain.handle('lx:webview', () => {
     openWebview();
@@ -503,17 +692,15 @@ if (!gotLock) {
         hideWebUI();
       }
     });
-    // Resolve the dsh runtime before booting the backend. In dev this is the
-    // deepseek-harness workspace build; packaged it is resources/dsh/ — plain
-    // files shipped inside the installer, no extraction step at all.
-    try {
-      const dshRoot = ensureDshRuntime();
-      backend.setVendorRoot(dshRoot);
-      log('dsh root: ' + dshRoot);
-      backend.start();
-    } catch (err) {
-      // The startup view shows the error; the user can retry via tray / menu.
-      backend.reportStartupError(String((err as Error)?.message ?? err));
+    // Boot per settings: a persisted remote connection validates and shows
+    // that backend's web UI directly (no local spawn); otherwise the local
+    // dsh backend boots (loopback by default, all interfaces with lanBind).
+    const settings = readSettings();
+    if (settings.remote !== null) {
+      log('remote backend configured: ' + settings.remote.url);
+      void connectRemote(settings.remote.url);
+    } else {
+      startLocalBackend(settings);
     }
     // auto-update check (skipped in dev)
     initUpdater(win);

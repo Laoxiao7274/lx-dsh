@@ -129,7 +129,7 @@ export const useLX = create<LXState>((set, get) => ({
     }
     window.lx.backend.onEvent((e: BackendEvent) => {
       set((s) => ({ backend: { ...s.backend, ...e } }));
-      if (e.state === 'running' && !get().describe) {
+      if (e.state === 'running' && e.remoteUrl === undefined && !get().describe) {
         void (async () => {
           try {
             const d = unwrap(await api('host', 'describe'));

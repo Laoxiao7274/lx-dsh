@@ -132,6 +132,8 @@ export interface BackendEvent {
   dshVersion?: string;
   error?: string;
   detail?: string;
+  /** Set when the web UI is served by a remote backend this shell connected to. */
+  remoteUrl?: string;
 }
 export interface BackendLogLine {
   stream: 'stdout' | 'stderr';
