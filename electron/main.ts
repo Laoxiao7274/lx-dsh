@@ -182,6 +182,9 @@ function buildMenu(): void {
     {
       label: 'Backend',
       submenu: [
+        // openQuickAnswers no-ops until the backend URL exists; the app menu
+        // is built once at boot, so it cannot track backend readiness.
+        { label: '快问快答', click: () => openQuickAnswers() },
         { label: 'Restart backend', click: () => backend.restart() },
         { label: 'Open web view', click: () => openWebview() },
         { label: 'Open in system browser', click: () => { if (backend.baseUrl) void shell.openExternal(backend.baseUrl); } },
@@ -215,6 +218,7 @@ function buildTray(): void {
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: 'Show / hide LX-DSH', click: () => toggleWindow() },
+        { label: '快问快答', enabled: !!backend.baseUrl, click: () => openQuickAnswers() },
         { label: 'Open web view', enabled: !!backend.baseUrl, click: () => openWebview() },
         {
           label: 'Copy backend URL',
@@ -297,13 +301,24 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-  ipcMain.handle('lx:win:min', () => win?.minimize());
-  ipcMain.handle('lx:win:max', () => {
-    if (!win) return;
-    if (win.isMaximized()) win.unmaximize();
-    else win.maximize();
+  // Window controls act on the CALLING window (main, quick-answers popup), so
+  // a frameless child's chrome never reaches into the main window. The main
+  // window keeps its close-to-tray behavior; child windows really close.
+  const senderWindow = (e: Electron.IpcInvokeEvent): BrowserWindow | null =>
+    BrowserWindow.fromWebContents(e.sender);
+  ipcMain.handle('lx:win:min', (e) => senderWindow(e)?.minimize());
+  ipcMain.handle('lx:win:max', (e) => {
+    const target = senderWindow(e);
+    if (!target) return;
+    if (target.isMaximized()) target.unmaximize();
+    else target.maximize();
   });
-  ipcMain.handle('lx:win:close', () => win?.hide());
+  ipcMain.handle('lx:win:close', (e) => {
+    const target = senderWindow(e);
+    if (!target) return;
+    if (target === win) target.hide();
+    else target.close();
+  });
 
   // ── Plugin management: read/modify the web profile's package.json ──
   const OFFICIAL_PREFIX = '@deepseek-ai/';
@@ -351,6 +366,52 @@ function registerIpc(): void {
 
   ipcMain.handle('lx:plugins:open', () => {
     openPluginManager();
+    return true;
+  });
+
+  // Quick-answers window: a standalone BrowserWindow pinned to a
+  // quick-answers-preset session. It loads the same dsh web UI (backend URL +
+  // '#quick' hash); the UI side recognizes the hash and boots straight into a
+  // fresh quick-answers session. Its own partition isolates the web UI's
+  // localStorage from the main window, so the ephemeral session selection
+  // never clobbers the main window's restored one.
+  let quickWin: BrowserWindow | null = null;
+  function openQuickAnswers(): void {
+    if (!backend.baseUrl) return;
+    if (quickWin && !quickWin.isDestroyed()) {
+      quickWin.focus();
+      return;
+    }
+    quickWin = new BrowserWindow({
+      width: 520,
+      height: 680,
+      minWidth: 380,
+      minHeight: 420,
+      resizable: true,
+      minimizable: true,
+      maximizable: false,
+      title: '快问快答',
+      frame: false,
+      parent: win ?? undefined,
+      modal: false,
+      autoHideMenuBar: true,
+      backgroundColor: '#ffffff',
+      show: false,
+      webPreferences: {
+        preload: join(__dirname, 'index.cjs'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        partition: 'lx-quick-answers',
+      },
+    });
+    quickWin.once('ready-to-show', () => quickWin?.show());
+    void quickWin.loadURL(backend.baseUrl + '#quick');
+    quickWin.on('closed', () => { quickWin = null; });
+  }
+
+  ipcMain.handle('lx:quick:open', () => {
+    openQuickAnswers();
     return true;
   });
   ipcMain.handle('lx:plugins:list', async () => {
@@ -418,23 +479,27 @@ function registerIpc(): void {
   // Manual titlebar drag: the renderer reports pointer deltas from the grab
   // point; the main process anchors only the window position at drag start.
   // (Anchoring the cursor too double-subtracts — the delta already encodes it.)
-  let dragOrigin: { x: number; y: number } | null = null;
-  ipcMain.on('lx:win:drag:start', () => {
-    if (!win || win.isDestroyed()) return;
-    if (win.isMaximized()) win.unmaximize();
-    const [x, y] = win.getPosition();
-    dragOrigin = { x, y };
+  // Per-window drag state, keyed by the dragging WebContents id: the main
+// window and the quick-answers popup can both be dragged concurrently.
+let dragOrigin: Map<number, number[]> = new Map();
+  ipcMain.on('lx:win:drag:start', (e) => {
+    const target = BrowserWindow.fromWebContents(e.sender);
+    if (!target || target.isDestroyed()) return;
+    if (target.isMaximized()) target.unmaximize();
+    dragOrigin.set(e.sender.id, target.getPosition());
   });
-  ipcMain.on('lx:win:drag:move', (_e, dx: number, dy: number) => {
-    if (!dragOrigin || !win || win.isDestroyed()) return;
-    win.setPosition(dragOrigin.x + dx, dragOrigin.y + dy);
+  ipcMain.on('lx:win:drag:move', (e, dx: number, dy: number) => {
+    const target = BrowserWindow.fromWebContents(e.sender);
+    const origin = dragOrigin.get(e.sender.id);
+    if (!origin || !target || target.isDestroyed()) return;
+    target.setPosition(origin[0] + dx, origin[1] + dy);
   });
-  ipcMain.on('lx:win:drag:end', () => {
-    dragOrigin = null;
+  ipcMain.on('lx:win:drag:end', (e) => {
+    dragOrigin.delete(e.sender.id);
   });
   // Safety net: losing focus mid-drag ends it (alt-tab, notification click…).
   app.on('browser-window-blur', () => {
-    dragOrigin = null;
+    dragOrigin.clear();
   });
 }
 
