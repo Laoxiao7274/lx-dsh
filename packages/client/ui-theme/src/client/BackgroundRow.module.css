@@ -1,0 +1,86 @@
+/* Background row: title + action row + opacity slider (Appearance section
+ * geometry; the hairline separator rides the section column). */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pick,
+.clear {
+  height: 28px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.pick:hover:not(:disabled),
+.clear:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.pick:disabled,
+.clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The real file input: visually hidden but keyboard-focusable. */
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.opacityRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.opacityLabel {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.opacity {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+}
+
+.error {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--dsw-alias-state-error-tertiary);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+}

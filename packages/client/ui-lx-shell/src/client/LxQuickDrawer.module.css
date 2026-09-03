@@ -1,0 +1,326 @@
+/* Quick-answers drawer: right-anchored slide-in panel over the conversation
+ * column. Fixed width, full height below any app inset; the overlay layer's
+ * pointer-events pass-through keeps the rest of the shell interactive. */
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 90vw);
+  padding-top: var(--dsh-app-inset-top, 0px);
+  box-sizing: border-box;
+  border-radius: 16px 0 0 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv3);
+  /* The drawer overlays the Session Header's window-drag strip: Chromium's
+   * app-region hit-test keeps a `drag` region painted underneath an overlay
+   * that does not declare itself, so the drawer opts out explicitly or its
+   * header buttons would not receive hover or clicks along the top edge. */
+  -webkit-app-region: no-drag;
+  /* Elevated surface (mirrors the settings panel): the scrollbar thumb
+     takes the l2 elevation tokens; the custom properties inherit down to
+     the scrolling .list child. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  animation: quick-drawer-in 180ms ease;
+}
+
+@keyframes quick-drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation: none;
+  }
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 10px 0 16px;
+  box-sizing: border-box;
+}
+
+.icon {
+  flex: none;
+  color: var(--dsw-alias-label-primary);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.reset,
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.reset:hover,
+.close:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.close {
+  width: 28px;
+  padding: 0;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.empty {
+  margin-top: 24px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.error {
+  margin-top: 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-danger-surface);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--dsw-alias-interactive-bg-selected);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Tool activity rows (search and friends): quiet chips above the answer. */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.toolIcon {
+  flex: none;
+}
+
+.toolName {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The Think disclosure mirrors the chat's ReasoningRow presentation. */
+.think {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.thinkRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.thinkLeading {
+  display: inline-flex;
+  align-items: center;
+}
+
+.thinkTitle {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.thinkChevron {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.thinkSeparator {
+  flex: none;
+  width: 0.5px;
+  height: 12px;
+  margin: 0 4px;
+  background: var(--dsw-alias-border-l3);
+}
+
+.thinkSummary {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+.think[data-state='running'] .thinkSummary {
+  animation: quick-think-shimmer 1.6s ease infinite;
+}
+
+@keyframes quick-think-shimmer {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+
+.thinkViewport {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 6px 10px;
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.thinkLine {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.answer {
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* The shared markdown pipeline renders at the chat's 14px scale; the drawer
+ * keeps its compact 13px without restyling every block. */
+.answer > :global(.markdown) {
+  font-size: 13px;
+}
+
+.dots::after {
+  content: '···';
+  animation: quick-dots 1s infinite steps(4);
+}
+
+@keyframes quick-dots {
+  0% { content: '·'; }
+  50% { content: '··'; }
+  100% { content: '···'; }
+}
+
+.composer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-l2-form);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.input::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  cursor: pointer;
+}
+
+.send:hover {
+  background: var(--dsw-alias-interactive-bg-hover-primary);
+}
+
+.send:focus-visible,
+.reset:focus-visible,
+.close:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}

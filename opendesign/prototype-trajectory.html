@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LX-DSH 轨迹页重设计 v4 · 调研驱动</title>
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   v4 = 行业收敛规则(见 opendesign/research-trace-ui.md):
+   1. 主舞台是步骤树,瀑布降级为 36px minimap(LangSmith 默认树,瀑布是按钮)
+   2. 类型 = 16px 描边小图标 + 名称,永远没有彩色底行(LangSmith/Langfuse)
+   3. 时延是唯一彩色数据:灰=正常 / 琥珀=慢 / 红=超时(Langfuse span 树)
+   4. 时长紧跟名称,小字灰色;右侧留白(LangSmith `create_research_plan 1.38s`)
+   5. 检查器 = 图标+名称 → 灰色 chip 行 → 下划线 tabs → 描边输入/输出卡(Langfuse)
+   6. 近乎单色 + 一个 accent + 大留白;等宽只进名称与 JSON
+   所有实现仍走项目 DSW token(r12/r999/tabular/微点/扫光)。
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --code: 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  --bg: rgb(255,255,255);
+  --bg-2: rgb(249,250,251);
+  --fg: rgb(15,17,21);
+  --fg-2: rgb(97,102,107);
+  --fg-3: rgb(129,133,140);
+  --cap: rgb(151,157,166);
+  --bd1: rgba(0,0,0,.05);
+  --bd2: rgba(0,0,0,.09);
+  --hover: rgba(38,49,72,.05);
+  --sel: rgb(242,244,247);
+  --blue: rgb(65,118,230);
+  --blue-soft: rgb(77,147,248);
+  --violet: rgb(147,120,216);       /* 图标描边专用,比 tint 沉一档 */
+  --red: rgb(236,19,19);
+  --amber: rgb(200,116,26);         /* 慢时延/运行:比 tint 沉,保证可读 */
+  --green: rgb(34,160,90);
+  --neutral: rgb(151,157,166);
+  --dimwash: rgba(15,17,21,.04);
+  --tip: rgb(44,44,46); --tip-fg: rgb(249,250,251);
+  --shadow-lv1: 0 2px 4px rgba(0,0,0,.05);
+  --shadow-lv3: 0 8px 24px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+}
+.dark {
+  --bg: rgb(35,35,36);
+  --bg-2: rgb(44,44,46);
+  --fg: rgb(240,242,245);
+  --fg-2: rgb(197,201,206);
+  --fg-3: rgb(158,163,170);
+  --cap: rgb(126,131,138);
+  --bd1: rgba(255,255,255,.07);
+  --bd2: rgba(255,255,255,.13);
+  --hover: rgba(255,255,255,.06);
+  --sel: rgba(103,158,254,.10);
+  --blue: rgb(103,158,254);
+  --blue-soft: rgb(96,165,250);
+  --violet: rgb(167,139,250);
+  --red: rgb(242,90,90);
+  --amber: rgb(240,168,60);
+  --green: rgb(78,200,126);
+  --neutral: rgb(126,131,138);
+  --dimwash: rgba(0,0,0,.35);
+  --tip: rgb(60,60,61); --tip-fg: rgb(249,250,251);
+  --shadow-lv3: 0 8px 24px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.4);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--sans); background:rgb(238,239,241); color:var(--fg);
+  display:flex; flex-direction:column; gap:32px; padding:32px; align-items:center; }
+h1 { font-size:16px; font-weight:600; }
+.sub { font-size:13px; color:#5b6470; max-width:1120px; line-height:1.8; }
+.sub b { color:#3a4148; }
+.board { display:flex; flex-direction:column; gap:10px; }
+.board-label { font-size:12px; color:#778088; }
+.app { width:1440px; background:var(--bg); border:1px solid var(--bd2);
+  border-radius:16px; overflow:hidden; display:flex; flex-direction:column;
+  box-shadow:0 12px 32px rgba(15,17,21,.06); }
+.frame { height:880px; display:flex; flex-direction:column; }
+svg { display:block; }
+
+/* ── 视图页签 ── */
+.viewtabs { display:flex; gap:2px; padding:8px 14px 0; flex:none; }
+.viewtab { padding:8px 14px 10px; font-size:14px; line-height:20px; color:var(--fg-3);
+  cursor:pointer; border-radius:10px 10px 0 0; user-select:none; position:relative; }
+.viewtab:hover { color:var(--fg-2); background:var(--hover); }
+.viewtab.active { color:var(--fg); font-weight:500; }
+.viewtab.active::after { content:''; position:absolute; left:14px; right:14px; bottom:0;
+  height:2px; background:var(--fg); border-radius:2px; }
+.viewtab .live { display:inline-block; width:6px; height:6px; border-radius:50%;
+  background:var(--amber); margin-left:6px; vertical-align:2px; }
+
+/* ── 工具条 ── */
+.toolbar { display:flex; align-items:center; gap:10px; height:48px; padding:0 16px; flex:none; }
+.seg { display:flex; background:var(--bg-2); border-radius:999px; padding:3px; gap:2px; }
+.seg-b { height:26px; padding:0 13px; border:0; background:transparent; color:var(--fg-3);
+  font:400 13px/20px var(--sans); border-radius:999px; cursor:pointer; }
+.seg-b.on { background:var(--bg); color:var(--fg); font-weight:500; box-shadow:var(--shadow-lv1); }
+.tb-btn { display:flex; align-items:center; gap:6px; height:30px; padding:0 12px;
+  border:0; border-radius:999px; background:transparent; color:var(--fg-2);
+  font:400 13px/20px var(--sans); cursor:pointer; }
+.tb-btn svg { width:14px; height:14px; }
+.tb-btn:hover { background:var(--hover); color:var(--fg); }
+.tb-btn.pressed { background:var(--bg-2); color:var(--fg); }
+.tb-spacer { flex:1; }
+.search { display:flex; align-items:center; gap:8px; height:30px; width:230px;
+  border-radius:999px; background:var(--bg-2); padding:0 12px; }
+.search svg { width:14px; height:14px; color:var(--fg-3); flex:none; }
+.search input { border:0; outline:0; background:transparent; font:400 13px var(--sans);
+  color:var(--fg); flex:1; min-width:0; }
+.search input::placeholder { color:var(--cap); }
+.search kbd { font:400 11px var(--code); color:var(--fg-3); border:1px solid var(--bd2);
+  border-radius:4px; padding:1px 5px; background:var(--bg); }
+
+/* ── minimap(瀑布降级后的 36px 概览条) ── */
+.mm { flex:none; margin:0 16px 8px; border-radius:10px; background:var(--bg-2);
+  border:1px solid var(--bd1); padding:6px 12px 4px; user-select:none; }
+.mm-track { position:relative; height:24px; }
+.mm-band { position:absolute; top:0; bottom:10px; background:var(--bg); border-radius:5px; }
+.mm-band b { position:absolute; left:6px; top:3px; font:400 9.5px var(--code); color:var(--cap);
+  font-weight:400; }
+.mm-tick { position:absolute; bottom:10px; border-radius:999px; }
+.mm-tick.user { height:12px; background:var(--blue); }
+.mm-tick.asst { height:9px; background:var(--blue-soft); }
+.mm-tick.tool { height:9px; background:var(--violet); }
+.mm-tick.sub  { height:5px; background:var(--violet); opacity:.5; }
+.mm-tick.sys  { height:3px; background:var(--neutral); }
+.mm-tick.err  { height:12px; background:var(--red); }
+.mm-tick.run  { height:12px; background:var(--amber); animation:runpulse 1.6s ease-in-out infinite; }
+.mm-brush { position:absolute; top:0; bottom:10px; left:var(--x); width:var(--w);
+  background:color-mix(in srgb, var(--blue) 9%, transparent); border-radius:5px;
+  border-left:1.5px solid var(--blue); border-right:1.5px solid var(--blue); }
+.mm-brush i { position:absolute; top:50%; width:3px; height:12px; margin-top:-6px;
+  border-radius:999px; background:var(--blue); }
+.mm-brush .l { left:-2px; } .mm-brush .r { right:-2px; }
+.mm-axis { position:relative; height:10px; }
+.mm-axis b { position:absolute; top:0; font:400 9.5px var(--code); color:var(--cap);
+  font-weight:400; }
+.mm-legend { position:absolute; right:0; top:-1px; display:flex; gap:10px;
+  font:400 10px var(--sans); color:var(--cap); }
+.mm-legend em { font-style:normal; display:inline-block; width:7px; height:7px;
+  border-radius:2px; margin-right:4px; vertical-align:-.5px; }
+
+/* ── 主区 ── */
+.main { flex:1; display:flex; min-height:0; }
+.tree { flex:1; min-width:0; overflow-y:auto; padding:4px 10px 24px; }
+.loadolder { display:flex; justify-content:center; padding:4px 0 8px; }
+.loadolder button { height:26px; padding:0 13px; border:1px solid var(--bd1); border-radius:999px;
+  background:var(--bg-2); color:var(--fg-2); font:400 12px var(--sans); cursor:pointer; }
+
+/* 轮次(树根) */
+.turn { display:flex; align-items:center; gap:10px; height:44px; padding:0 10px 0 6px;
+  margin-top:6px; border-radius:9px; cursor:pointer; }
+.turn:hover { background:var(--hover); }
+.turn .root-ico { display:grid; place-items:center; flex:none; width:22px; height:22px;
+  border-radius:6px; background:var(--bg-2); border:1px solid var(--bd2);
+  font:500 10px var(--code); color:var(--fg-2); }
+.turn .t-title { font:500 13.5px/20px var(--sans); color:var(--fg); flex:1; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.turn .t-chip { flex:none; font:400 11px var(--code); color:var(--fg-3);
+  background:var(--bg-2); border-radius:6px; padding:2.5px 8px; font-variant-numeric:tabular-nums;
+  white-space:nowrap; }
+.turn .chev { flex:none; color:var(--fg-3); }
+.turn.closed .chev { transform:rotate(-90deg); }
+
+/* 树:竖线 + 肘形连接 */
+.lane { position:relative; }
+.lane::before { content:''; position:absolute; left:17px; top:0; bottom:14px; width:1px;
+  background:var(--bd1); }
+.step { position:relative; display:flex; align-items:center; height:26px; padding-left:34px;
+  font:400 11.5px/16px var(--code); color:var(--cap); }
+.step .sp { color:var(--fg-3); }
+.step .sd { margin-left:8px; font-variant-numeric:tabular-nums; }
+
+/* 事件行:图标 + 名称 + 时延贴名 */
+.ev { position:relative; display:flex; align-items:center; height:40px; padding:0 10px 0 6px;
+  border-radius:9px; cursor:default; }
+.ev:hover { background:var(--hover); }
+.ev.dim { opacity:.35; }
+.ev::before { content:''; position:absolute; left:17px; top:50%; width:11px; height:1px;
+  background:var(--bd1); }
+.ev .ico { position:relative; display:grid; place-items:center; flex:none; width:18px; height:18px;
+  margin-left:11px; border-radius:5px; border:1.2px solid var(--neutral); color:var(--neutral);
+  background:var(--bg); }
+.ev .ico svg { width:10px; height:10px; }
+.ev[data-k="user"] .ico { border-color:var(--blue); color:var(--blue); }
+.ev[data-k="asst"] .ico { border-color:var(--blue-soft); color:var(--blue-soft); }
+.ev[data-k="tool"] .ico { border-color:var(--violet); color:var(--violet); }
+.ev[data-k="sys"]  .ico { border-style:dashed; }
+.ev.run .ico { border-color:var(--amber); color:var(--amber); }
+.ev.err .ico { border-color:var(--red); color:var(--red); }
+.ev .nm { margin-left:10px; font:400 13px/20px var(--sans); color:var(--fg);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.ev .nm .arg { font:400 12px var(--code); color:var(--fg-3); margin-left:7px; }
+.ev[data-k="tool"] .nm { font:400 12.5px var(--code); }
+.ev .du { flex:none; margin-left:10px; font:400 12px var(--sans); color:var(--fg-3);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ev .du.slow { color:var(--amber); }
+.ev .du.xslow { color:var(--red); }
+.ev .st { flex:none; margin-left:8px; display:grid; place-items:center; width:16px; height:16px; }
+.ev .st svg { width:13px; height:13px; }
+.ev .st.ok { color:var(--green); }
+.ev .st.fail { color:var(--red); }
+.ev .st.run { color:var(--amber); }
+.ev .du.shimmer { background:linear-gradient(90deg, var(--amber) 0%, var(--amber) 40%,
+  color-mix(in srgb, var(--amber) 30%, var(--bg)) 50%, var(--amber) 60%, var(--amber) 100%);
+  background-size:200% 100%; background-clip:text; color:transparent;
+  animation:runshimmer 1.6s ease-in-out infinite; }
+.ev.sel { background:var(--sel); }
+.ev.sub { height:36px; }
+.ev.sub::before { left:17px; width:11px; }
+.ev.sub .ico { margin-left:29px; width:15px; height:15px; border-radius:4px; opacity:.8; }
+.mark { background:var(--sel); border-radius:3px; padding:0 2px; }
+.turn-sum { height:28px; display:flex; align-items:center; padding-left:34px;
+  font:400 12px var(--sans); color:var(--fg-3); font-variant-numeric:tabular-nums;
+  border-radius:8px; cursor:pointer; }
+.turn-sum:hover { background:var(--hover); }
+
+/* ── 检查器(Langfuse 右侧面板式) ── */
+.insp { width:400px; flex:none; border-left:1px solid var(--bd2); background:var(--bg);
+  display:flex; flex-direction:column; min-height:0; }
+.insp-head { display:flex; align-items:center; gap:10px; padding:14px 14px 10px; flex:none; }
+.insp-head .ico { display:grid; place-items:center; width:22px; height:22px; border-radius:6px;
+  border:1.2px solid var(--violet); color:var(--violet); }
+.insp-head .ico svg { width:12px; height:12px; }
+.insp-head .iname { font:500 14px/20px var(--code); color:var(--fg); }
+.insp-head .x { margin-left:auto; display:grid; place-items:center; width:26px; height:26px;
+  border:0; border-radius:999px; background:transparent; color:var(--fg-3); cursor:pointer; }
+.insp-head .x:hover { background:var(--hover); color:var(--fg); }
+.insp-head .x svg { width:11px; height:11px; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 12px; flex:none;
+  border-bottom:1px solid var(--bd1); }
+.chips span { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 9px;
+  border-radius:6px; background:var(--bg-2); font:400 11px var(--sans); color:var(--fg-3); }
+.chips b { font:500 11px var(--code); color:var(--fg); font-variant-numeric:tabular-nums; }
+.chips b.ok { color:var(--green); }
+.chips b.link { color:var(--blue); font-weight:400; }
+.i-tabs { display:flex; gap:2px; padding:10px 14px 0; border-bottom:1px solid var(--bd1); flex:none; }
+.i-tab { position:relative; padding:5px 9px 8px; font:400 13px/20px var(--sans);
+  color:var(--fg-3); cursor:pointer; border-radius:8px 8px 0 0; }
+.i-tab:hover { color:var(--fg-2); background:var(--hover); }
+.i-tab.on { color:var(--fg); font-weight:500; }
+.i-tab.on::after { content:''; position:absolute; left:9px; right:9px; bottom:-1px; height:2px;
+  background:var(--fg); border-radius:2px; }
+.i-body { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+.io .lab { display:flex; align-items:center; gap:6px; margin-bottom:6px;
+  font:500 12px/18px var(--sans); color:var(--fg-2); }
+.io .lab em { font-style:normal; font:400 10.5px var(--code); color:var(--cap); }
+.io-card { border:1px solid var(--bd1); border-radius:12px; background:var(--bg-2);
+  padding:12px 14px; font:400 12px/20px var(--code); color:var(--fg-2); overflow-x:auto;
+  white-space:pre-wrap; }
+.io-card .k { color:var(--fg-3); }
+.io-card .s { color:var(--blue); }
+.io-card .n { color:var(--amber); }
+.io-card .syslab { display:block; font:500 10px var(--code); letter-spacing:.08em;
+  color:var(--cap); margin-bottom:4px; }
+.bar { display:flex; gap:1px; height:4px; border-radius:999px; background:var(--hover);
+  overflow:hidden; }
+.bar i { display:block; height:100%; border-radius:1px; min-width:2px; }
+.legend { display:flex; gap:14px; margin-top:7px; font:400 12px var(--sans); color:var(--fg-3);
+  font-variant-numeric:tabular-nums; }
+.legend em { display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:5px; }
+
+/* ── 空态/骨架 ── */
+.empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px; color:var(--fg-3); font-size:13px; }
+.empty .hint { font-size:12px; color:var(--cap); }
+.empty svg { width:34px; height:34px; color:var(--cap); opacity:.5; margin-bottom:2px; }
+.skel { display:flex; align-items:center; gap:10px; height:40px; padding:0 16px; }
+.skel i, .skel u { border-radius:999px;
+  background:linear-gradient(90deg,var(--bd1) 25%,var(--bd2) 50%,var(--bd1) 75%);
+  background-size:200% 100%; animation:sh 1.4s infinite; }
+.skel u { flex:none; width:18px; height:18px; border-radius:5px; }
+.skel i { height:11px; }
+
+/* ── 调研结论卡 ── */
+.spec { width:1440px; background:#fff; border:1px solid #d4d9de; border-radius:16px;
+  padding:20px 24px; }
+.spec h3 { font-size:13px; font-weight:600; margin-bottom:10px; }
+.spec ol { margin-left:18px; font-size:12.5px; color:#5b6470; line-height:2; }
+.spec code { font:400 11px var(--code); background:#f1f3f5; border-radius:4px; padding:1px 5px;
+  color:#3a4148; }
+.spec .src { font-size:11.5px; color:#8a929b; margin-top:10px; }
+.grid2 { display:grid; grid-template-columns:1.2fr 1fr; gap:28px; }
+
+@keyframes runshimmer { to { background-position:-200% 0; } }
+@keyframes runpulse { 0%,100% { opacity:1; } 50% { opacity:.45; } }
+@keyframes sh { to { background-position:-200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mm-tick.run, .du.shimmer, .skel i, .skel u { animation:none; }
+  .du.shimmer { background:none; color:var(--amber); }
+}
+</style>
+</head>
+<body>
+
+<h1>轨迹页重设计 v4 · 调研驱动</h1>
+<p class="sub">
+调研了 Langfuse / LangSmith(专业 LLM 执行轨迹浏览器)、GitHub Copilot coding agent、Claude Code on the web、Codex cloud(一手截图存档
+<span style="font-family:var(--code);font-size:12px">.tmp-research/</span>)。行业六条收敛规则:
+<b>①步骤树是主角,瀑布是配角</b>(LangSmith 里瀑布只是一个切换按钮);<b>②类型靠 16px 描边小图标+名称,不用彩色底行/大节点</b>;
+<b>③时延才是唯一该上色的数据</b>(灰=正常,琥珀=慢,红=超时);<b>④时长紧跟名称</b>,小字灰,右侧留白;
+<b>⑤右侧详情 = chip 行 + 下划线 tabs + 描边输入/输出卡</b>;<b>⑥整体近乎单色</b>,accent 只给选中与链接。
+v1-v3 的彩色瀑布、大圆节点、三形态芯片全部违背这些规则:这就是「不好看」的来源,它不像同类产品那样「安静地专业」。
+</p>
+
+<!-- ══════════════ B1 亮色全览 ══════════════ -->
+<div class="board" id="b1">
+  <div class="board-label">B1 · 亮色 · 步骤树 + minimap + 检查器</div>
+  <div class="app">
+    <div class="frame">
+
+      <div class="viewtabs">
+        <div class="viewtab">对话</div>
+        <div class="viewtab active">轨迹<i class="live" title="会话进行中"></i></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="seg">
+          <button class="seg-b">等宽</button>
+          <button class="seg-b on">时长</button>
+          <button class="seg-b">实时</button>
+        </div>
+        <button class="tb-btn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5h11M2.5 11h11M6 3.2 4 5l2 1.8M10 12.8l2-1.8-2-1.8"/></svg>
+          折叠轮次
+        </button>
+        <button class="tb-btn pressed">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5h11M2.5 11h11M6 12.8 4 11l2-1.8M10 3.2l2 1.8-2 1.8"/></svg>
+          展开调用
+        </button>
+        <div class="tb-spacer"></div>
+        <label class="search">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3 3"/></svg>
+          <input placeholder="搜索轨迹">
+          <kbd>⌘F</kbd>
+        </label>
+      </div>
+
+      <div class="mm">
+        <div class="mm-track">
+          <div class="mm-band" style="left:0;width:26%"><b>T1</b></div>
+          <div class="mm-band" style="left:55%;width:27%"><b>T3</b></div>
+          <div class="mm-band" style="left:82%;right:0"><b>T4</b></div>
+          <div class="mm-legend">
+            <span><em style="background:var(--blue)"></em>输入</span>
+            <span><em style="background:var(--blue-soft)"></em>回应</span>
+            <span><em style="background:var(--violet)"></em>动作</span>
+          </div>
+          <i class="mm-tick user" style="left:3%;width:.9%"></i>
+          <i class="mm-tick asst" style="left:5%;width:5%"></i>
+          <i class="mm-tick tool" style="left:10.6%;width:2.5%"></i>
+          <i class="mm-tick sub" style="left:13.4%;width:1%"></i>
+          <i class="mm-tick asst" style="left:14.8%;width:1.8%"></i>
+          <i class="mm-tick tool" style="left:17%;width:3%"></i>
+          <i class="mm-tick tool" style="left:20.5%;width:2.4%"></i>
+          <i class="mm-tick asst" style="left:23.4%;width:2.4%"></i>
+          <i class="mm-tick user" style="left:26.8%;width:1%"></i>
+          <i class="mm-tick asst" style="left:28.2%;width:4.8%"></i>
+          <i class="mm-tick tool" style="left:33.6%;width:2.6%"></i>
+          <i class="mm-tick err" style="left:36.6%;width:1.4%"></i>
+          <i class="mm-tick asst" style="left:38.4%;width:4.4%"></i>
+          <i class="mm-tick run" style="left:43.2%;width:3.2%"></i>
+          <i class="mm-tick asst" style="left:46.8%;width:1.6%"></i>
+          <i class="mm-tick tool" style="left:48.8%;width:2.4%"></i>
+          <i class="mm-tick asst" style="left:51.6%;width:3.4%"></i>
+          <i class="mm-tick user" style="left:55.4%;width:.9%"></i>
+          <i class="mm-tick asst" style="left:56.8%;width:4.4%"></i>
+          <i class="mm-tick tool" style="left:61.8%;width:2.2%"></i>
+          <i class="mm-tick asst" style="left:64.6%;width:3.6%"></i>
+          <i class="mm-tick tool" style="left:68.6%;width:3%"></i>
+          <i class="mm-tick asst" style="left:72%;width:4.2%"></i>
+          <i class="mm-tick tool" style="left:76.6%;width:2.2%"></i>
+          <i class="mm-tick asst" style="left:79.2%;width:2.8%"></i>
+          <i class="mm-tick sys" style="left:82.4%;width:1%"></i>
+          <i class="mm-tick asst" style="left:83.8%;width:5%"></i>
+          <i class="mm-tick tool" style="left:89.4%;width:2.2%"></i>
+          <i class="mm-tick asst" style="left:92%;width:2.2%"></i>
+          <div class="mm-brush" style="--x:33.6%;--w:13.2%"><i class="l"></i><i class="r"></i></div>
+        </div>
+        <div class="mm-axis">
+          <b style="left:0">14:02</b><b style="left:24%">14:04</b><b style="left:48%">14:06</b>
+          <b style="left:72%">14:08</b><b style="left:96%">14:10</b>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="tree">
+          <div class="loadolder"><button>加载更早的 100 条事件</button></div>
+
+          <div class="turn">
+            <span class="root-ico">T1</span>
+            <span class="t-title">看一下会话日志损坏修复的进度,顺便跑一遍回归</span>
+            <span class="t-chip">3 steps · 96.4s · 204k tok</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+          <div class="lane">
+            <div class="step"><span class="sp">Step 1</span><span class="sd">#2 · 31.2s</span></div>
+            <div class="ev" data-k="user">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="5.4" r="2.4"/><path d="M3.6 13c.8-2.1 2.4-3.2 4.4-3.2s3.6 1.1 4.4 3.2"/></svg></span>
+              <span class="nm">看一下会话日志损坏修复的进度,顺便跑一遍回归</span>
+              <span class="du">142 tok</span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">salvage 链路已经落地,我先确认一下 zstd 帧扫描的边界情况……</span>
+              <span class="du">5.1s · 1,203 tok</span>
+            </div>
+            <div class="ev sel" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">read<span class="arg">session-persistence-jsonl.ts</span></span>
+              <span class="du">240ms</span>
+              <span class="st ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="m5.4 8.2 1.7 1.7 3.5-3.6"/></svg></span>
+            </div>
+            <div class="ev" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">grep<span class="arg">commitRepair · *.ts</span></span>
+              <span class="du">380ms</span>
+              <span class="st ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="m5.4 8.2 1.7 1.7 3.5-3.6"/></svg></span>
+            </div>
+            <div class="ev sub" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">git status<span class="arg">--short</span></span>
+              <span class="du">90ms</span>
+              <span class="st ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="m5.4 8.2 1.7 1.7 3.5-3.6"/></svg></span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">修复本体没有回归,三个测试还红着的是夹具问题……</span>
+              <span class="du">3.9s · 894 tok</span>
+            </div>
+            <div class="step"><span class="sp">Step 2</span><span class="sd">#3 · 42.7s</span></div>
+            <div class="ev" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">pwsh<span class="arg">vitest run packages/core/session</span></span>
+              <span class="du slow">34.1s</span>
+              <span class="st ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="m5.4 8.2 1.7 1.7 3.5-3.6"/></svg></span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">两个失败都是时间敏感断言,我把时钟注入后再复跑……</span>
+              <span class="du">2.6s · 612 tok</span>
+            </div>
+          </div>
+
+          <div class="turn">
+            <span class="root-ico">T2</span>
+            <span class="t-title">把扫描器的 checkpoint 回滚也实现了</span>
+            <span class="t-chip">2 steps · 45.2s · 87,214 tok</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+          <div class="lane">
+            <div class="step"><span class="sp">Step 1</span><span class="sd">#7 · 38.9s</span></div>
+            <div class="ev" data-k="user">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="5.4" r="2.4"/><path d="M3.6 13c.8-2.1 2.4-3.2 4.4-3.2s3.6 1.1 4.4 3.2"/></svg></span>
+              <span class="nm">把扫描器的 checkpoint 回滚也实现了,别只修读路径</span>
+              <span class="du">38 tok</span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">rollbackTo 已有雏形,缺的是把检查点持久化进恢复缝合线……</span>
+              <span class="du">4.2s · 981 tok</span>
+            </div>
+            <div class="ev" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">edit<span class="arg">zstd.ts · rollbackTo(checkpoint)</span></span>
+              <span class="du">96ms</span>
+              <span class="st ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="m5.4 8.2 1.7 1.7 3.5-3.6"/></svg></span>
+            </div>
+            <div class="ev run" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">pwsh<span class="arg">vitest run zstd.spec.ts</span></span>
+              <span class="du shimmer">运行中 · 12.4s</span>
+              <span class="st run"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 5.2V8l2 1.4"/></svg></span>
+            </div>
+            <div class="step"><span class="sp">Step 2</span><span class="sd">#8 · 6.3s</span></div>
+            <div class="ev err" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">grep<span class="arg">scanZstdFrames(Salvage) · invalid regular expression</span></span>
+              <span class="du">80ms</span>
+              <span class="st fail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="m6.2 6.2 3.6 3.6m0-3.6-3.6 3.6"/></svg></span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">括号没转义,换成字面量匹配再来一次……</span>
+              <span class="du">1.7s · 402 tok</span>
+            </div>
+          </div>
+
+          <div class="turn closed">
+            <span class="root-ico">T3</span>
+            <span class="t-title">跑一遍全量测试,绿了就提交</span>
+            <span class="t-chip">8 steps · 4m12s · 1.2M tok · 42 calls</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+          <div class="lane">
+            <div class="turn-sum">4 次失败重试 · +2,144 −318 行 · 3 个提交</div>
+          </div>
+
+          <div class="turn">
+            <span class="root-ico">T4</span>
+            <span class="t-title">提交并推送</span>
+            <span class="t-chip">1 step · 21.7s · 41,902 tok</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+          <div class="lane">
+            <div class="ev" data-k="sys">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h8"/></svg></span>
+              <span class="nm">系统提示更新<span class="arg">+2 tools · 1 rule change</span></span>
+              <span class="du">查看 Diff</span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">全部绿了,两个提交已经推到本地 master……</span>
+              <span class="du">3.1s · 733 tok</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="insp">
+          <div class="insp-head">
+            <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+            <span class="iname">read</span>
+            <button class="x"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="m2.5 2.5 7 7m0-7-7 7"/></svg></button>
+          </div>
+          <div class="chips">
+            <span>状态 <b class="ok">完成</b></span>
+            <span>耗时 <b>240ms</b></span>
+            <span>请求 <b class="link">#2 Step 1</b></span>
+            <span>调用方 <b class="link">assistant #201</b></span>
+          </div>
+          <nav class="i-tabs">
+            <div class="i-tab on">输入</div>
+            <div class="i-tab">输出</div>
+            <div class="i-tab">Schema</div>
+            <div class="i-tab">计时</div>
+          </nav>
+          <div class="i-body">
+            <div class="io">
+              <div class="lab">输入 <em>2 项</em></div>
+              <div class="io-card">{
+  <span class="k">"file_path"</span>: <span class="s">"packages/core/session/src/client/jsonl.ts"</span>,
+  <span class="k">"offset"</span>: <span class="n">1</span>,
+  <span class="k">"limit"</span>: <span class="n">2000</span>
+}</div>
+            </div>
+            <div class="io">
+              <div class="lab">输出 <em>结果预览</em></div>
+              <div class="io-card"><span class="syslab">RESULT</span>2,431 行 · 96.2 KB
+
+1: /** JSONL framing for durable sessions. */
+2: import { createZstd } from './zstd.ts'
+3: ...</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ B2 暗色 + 状态 ══════════════ -->
+<div class="board" id="b2">
+  <div class="board-label">B2 · 暗色 · 搜索命中 + 检查器计时</div>
+  <div class="app dark">
+    <div class="frame">
+
+      <div class="viewtabs">
+        <div class="viewtab">对话</div>
+        <div class="viewtab active">轨迹<i class="live"></i></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="seg">
+          <button class="seg-b">等宽</button>
+          <button class="seg-b on">时长</button>
+          <button class="seg-b">实时</button>
+        </div>
+        <div class="tb-spacer"></div>
+        <label class="search" style="background:var(--bg);box-shadow:0 0 0 1.5px var(--blue), var(--shadow-lv3)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="color:var(--blue)"><circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3 3"/></svg>
+          <input value="commitRepair">
+          <span style="font:400 12px var(--sans);color:var(--blue);flex:none">12 处</span>
+        </label>
+      </div>
+
+      <div class="mm">
+        <div class="mm-track">
+          <div class="mm-band" style="left:26%;width:29%"><b>T2</b></div>
+          <div class="mm-band" style="left:82%;right:0"><b>T4</b></div>
+          <i class="mm-tick user" style="left:3%;width:.9%"></i>
+          <i class="mm-tick asst" style="left:5%;width:5%"></i>
+          <i class="mm-tick tool" style="left:10.6%;width:2.5%"></i>
+          <i class="mm-tick asst" style="left:14.8%;width:1.8%"></i>
+          <i class="mm-tick tool" style="left:17%;width:3%"></i>
+          <i class="mm-tick user" style="left:26.8%;width:1%"></i>
+          <i class="mm-tick asst" style="left:28.2%;width:4.8%"></i>
+          <i class="mm-tick tool" style="left:33.6%;width:2.6%"></i>
+          <i class="mm-tick err" style="left:36.6%;width:1.4%"></i>
+          <i class="mm-tick run" style="left:43.2%;width:3.2%"></i>
+          <i class="mm-tick user" style="left:55.4%;width:.9%"></i>
+          <i class="mm-tick asst" style="left:56.8%;width:4.4%"></i>
+          <i class="mm-tick sys" style="left:82.4%;width:1%"></i>
+          <i class="mm-tick asst" style="left:83.8%;width:5%"></i>
+          <div class="mm-brush" style="--x:28%;--w:19%"><i class="l"></i><i class="r"></i></div>
+        </div>
+        <div class="mm-axis">
+          <b style="left:0">14:02</b><b style="left:24%">14:04</b><b style="left:48%">14:06</b>
+          <b style="left:72%">14:08</b><b style="left:96%">14:10</b>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="tree">
+          <div class="turn">
+            <span class="root-ico">T1</span>
+            <span class="t-title">看一下会话日志损坏修复的进度</span>
+            <span class="t-chip">3 steps · 96.4s · 204k tok</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+          <div class="lane">
+            <div class="step"><span class="sp">Step 1</span><span class="sd">#2 · 31.2s</span></div>
+            <div class="ev dim" data-k="user">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="5.4" r="2.4"/><path d="M3.6 13c.8-2.1 2.4-3.2 4.4-3.2s3.6 1.1 4.4 3.2"/></svg></span>
+              <span class="nm">看一下会话日志损坏修复的进度</span>
+            </div>
+            <div class="ev" data-k="asst">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+              <span class="nm">我把 <span class="mark">commitRepair</span> 的调用点全部翻了一遍,发现……</span>
+              <span class="du">5.1s · 1,203 tok</span>
+            </div>
+            <div class="ev sel" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">grep<span class="arg"><span class="mark">commitRepair</span> · *.ts</span></span>
+              <span class="du">380ms</span>
+              <span class="st ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="m5.4 8.2 1.7 1.7 3.5-3.6"/></svg></span>
+            </div>
+            <div class="ev dim" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">git log<span class="arg">--oneline -5</span></span>
+              <span class="du">90ms</span>
+            </div>
+            <div class="ev run" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">pwsh<span class="arg">vitest run jsonl.spec.ts</span></span>
+              <span class="du shimmer">运行中 · 8.2s</span>
+              <span class="st run"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 5.2V8l2 1.4"/></svg></span>
+            </div>
+            <div class="ev err" data-k="tool">
+              <span class="ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z"/></svg></span>
+              <span class="nm">grep<span class="arg">scanZstdFrames(Salvage) · invalid regular expression</span></span>
+              <span class="du">80ms</span>
+              <span class="st fail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="m6.2 6.2 3.6 3.6m0-3.6-3.6 3.6"/></svg></span>
+            </div>
+          </div>
+          <div class="turn closed">
+            <span class="root-ico">T3</span>
+            <span class="t-title">跑一遍全量测试,绿了就提交</span>
+            <span class="t-chip">8 steps · 4m12s · 1.2M tok · 42 calls</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+          <div class="lane"><div class="turn-sum">4 次失败重试 · +2,144 −318 行 · 3 个提交</div></div>
+        </div>
+
+        <aside class="insp">
+          <div class="insp-head">
+            <span class="ico" style="border-color:var(--blue-soft);color:var(--blue-soft)"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6 9.4 6.6 14.4 8 9.4 9.4 8 14.4 6.6 9.4 1.6 8 6.6 6.6Z"/></svg></span>
+            <span class="iname">assistant</span>
+            <button class="x"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="m2.5 2.5 7 7m0-7-7 7"/></svg></button>
+          </div>
+          <div class="chips">
+            <span>状态 <b class="ok">完成</b></span>
+            <span>耗时 <b>1.69s</b></span>
+            <span>模型 <b>deepseek-v4</b></span>
+            <span>请求 <b class="link">#7 Step 1</b></span>
+          </div>
+          <nav class="i-tabs">
+            <div class="i-tab">输入</div>
+            <div class="i-tab">输出</div>
+            <div class="i-tab on">计时</div>
+          </nav>
+          <div class="i-body">
+            <div class="io">
+              <div class="lab">生成时间线</div>
+              <div class="bar">
+                <i style="width:19%;background:var(--neutral)"></i>
+                <i style="width:58%;background:var(--blue)"></i>
+                <i style="width:23%;background:var(--violet)"></i>
+              </div>
+              <div class="legend">
+                <span><em style="background:var(--neutral)"></em>TTFT 320ms</span>
+                <span><em style="background:var(--blue)"></em>解码 981ms</span>
+                <span><em style="background:var(--violet)"></em>排队 390ms</span>
+              </div>
+            </div>
+            <div class="io">
+              <div class="lab">用量</div>
+              <div class="io-card" style="white-space:normal">
+输入 <span class="n">41,860</span> · 缓存命中 <span class="n">38,944</span>
+输出 <span class="n">981</span> · 推理 <span class="n">317</span> · <span class="n">59.4 tok/s</span></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ B3 空态 + 调研规则 ══════════════ -->
+<div class="board" id="b3">
+  <div class="board-label">B3 · 空态 / 加载 · 调研规则对照</div>
+  <div style="display:flex; gap:20px; align-items:stretch;">
+    <div class="app" style="width:430px">
+      <div style="height:320px; display:flex; flex-direction:column;">
+        <div class="toolbar" style="padding:0 12px">
+          <div class="seg"><button class="seg-b on">等宽</button><button class="seg-b">时长</button><button class="seg-b">实时</button></div>
+          <div class="tb-spacer"></div>
+          <label class="search" style="width:150px">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3 3"/></svg>
+            <input placeholder="搜索">
+          </label>
+        </div>
+        <div class="empty">
+          <svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M18 5v3.4M18 27.6V31M5 18h3.4M27.6 18H31"/><circle cx="18" cy="18" r="5.4"/><circle cx="18" cy="18" r="10.8" stroke-dasharray="2.4 4.4"/></svg>
+          还没有产生事件
+          <span class="hint">发送第一条消息后,这里会按轮次展开</span>
+        </div>
+      </div>
+    </div>
+    <div class="app" style="width:520px">
+      <div style="height:320px; display:flex; flex-direction:column;">
+        <div class="loadolder" style="padding-top:12px"><button>加载更早的 100 条事件</button></div>
+        <div style="flex:1">
+          <div class="skel"><u></u><i style="width:300px"></i></div>
+          <div class="skel"><u></u><i style="width:220px"></i><i style="width:52px"></i></div>
+          <div class="skel"><u></u><i style="width:380px"></i></div>
+          <div class="skel"><u></u><i style="width:260px"></i><i style="width:44px"></i></div>
+          <div class="skel"><u></u><i style="width:340px"></i></div>
+          <div class="skel"><u></u><i style="width:190px"></i><i style="width:56px"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="spec" style="width:auto; flex:1; display:block">
+      <div class="grid2">
+        <div>
+          <h3>调研六规则 → v4 落点</h3>
+          <ol>
+            <li>步骤树是主角 → 事件树 + 肘形连接线;<b>瀑布降级为 36px minimap</b>(保留刷选/缩放交互)</li>
+            <li>类型 = 小图标 → 18px 描边圆角方(人=输入 / 星=回应 / 扳手=动作 / 虚线横杠=系统),零彩色底行</li>
+            <li>时延上色 → <code>240ms</code> 灰、<code>34.1s</code> 琥珀、<code>&gt;40s</code> 红;类型色只出现在 18px 图标描边</li>
+            <li>时长贴名 → <code>pwsh vitest run… 80ms</code>,右侧只留状态图标;轮次摘要收进 chip <code>2 steps · 45.2s</code></li>
+            <li>检查器 = Langfuse 式 → 图标+名称 → <b>chip 行</b>(状态/耗时/请求/调用方)→ 下划线 tabs → 输入/输出<b>描边卡</b></li>
+            <li>近乎单色 → 白/近黑底、灰字、accent 只给选中与链接;等宽只给名称与 JSON</li>
+          </ol>
+        </div>
+        <div>
+          <h3>证据来源</h3>
+          <ol style="margin-left:18px">
+            <li>Langfuse Trace 视图:列表+树+右侧详情,慢时延橙红 / 正常灰<span class="src">langfuse.com/docs/tracing</span></li>
+            <li>LangSmith Trace:默认树、时延贴名、右侧 Input/Output 描边卡;瀑布只是按钮<span class="src">langchain.com/langsmith 产品页</span></li>
+            <li>GitHub Copilot coding agent:PR 内日志流安静、命令灰块<span class="src">github.blog 2025-05</span></li>
+            <li>Claude Code web / Codex cloud:transcript 流,小图标 + 等宽命令行,无彩色行<span class="src">anthropic.com/news、openai.com</span></li>
+          </ol>
+          <p class="src">完整笔记:opendesign/research-trace-ui.md(截图存档 .tmp-research/)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

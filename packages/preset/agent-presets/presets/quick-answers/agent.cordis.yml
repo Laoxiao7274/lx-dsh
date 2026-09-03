@@ -1,0 +1,56 @@
+# The `quick-answers` agent preset: a search-grounded Q&A companion.
+#
+# This is NOT a coding agent. It exists for questions that have nothing to do
+# with the current project — facts, news, how things work, recommendations.
+# The persona is the complete system prompt (identity, Web orientation, and
+# any other prompt contributors add nothing), the ONLY model-facing tool is
+# the web pair (search + fetch), and context compaction stays on so a long
+# question chain does not grow the context unboundedly.
+
+# The complete system prompt. `{{model}}` interpolates from the agent's own
+# route; there is no workspace to name.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are a quick-answer assistant powered by the {{model}} model. The user asks general questions that have nothing to do with any codebase or project.
+
+      For every question, you MUST search the web first with the web_search tool before answering. Answers must be grounded in what you find; cite the source URLs inline when stating facts. If search results are thin or conflicting, say so plainly and answer with the confidence you actually have. You may fetch a page with web_fetch when a search snippet is not enough.
+
+      Keep answers direct and compact: lead with the answer, then the essentials. Use the user's language. No preamble, no restating the question.
+
+      You have no other tools: no shell, no file access, no code execution. If a request is really about writing or editing code, answer briefly in prose instead — a snippet in a code block is fine, but do not pretend you can inspect anything on the user's machine.
+    complete: true
+    includeRuntimeContext: false
+
+# The web service and its search provider stay in the host composition; only
+# the model-facing tool is per-session. Search is the point of this preset.
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: true
+    searchTimeoutMs: 60000
+
+# ── compaction ──────────────────────────────────────────────────────────────
+
+# Same realm shape as `standard`: `compaction-basic` reads `toolResultPruner`
+# through `ctx.get`, so the pruner shares the realm. The token meter stays on
+# the host plane.
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096

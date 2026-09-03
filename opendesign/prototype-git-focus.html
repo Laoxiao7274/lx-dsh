@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LX-DSH 焦点模式设计稿 — 右坞放大 + 聊天小窗（design-taste-frontend 流程产出）</title>
+<style>
+/* Design Read: 读作「开发者高频产品面板的焦点模式」，锚定 dsh --dsw 体系（单色 + 状态色），
+   刻度 VARIANCE 3 / MOTION 2 / DENSITY 5 —— 与已认可的 git 面板原型同一体系。
+   全部数值取自 design-platform.css 亮色主题。 */
+:root {
+  --bg: rgb(255,255,255);
+  --bg-2: rgb(249,250,251);
+  --fg: rgb(15,17,21);
+  --fg-2: rgb(97,102,107);
+  --fg-3: rgb(129,133,140);
+  --dim: rgb(207,211,214);
+  --bd1: rgba(0,0,0,.04);
+  --bd2: rgba(0,0,0,.1);
+  --bd3: rgba(0,0,0,.12);
+  --hover: rgba(38,49,72,.06);
+  --green: rgb(34,197,94);
+  --green-bg: rgb(230,250,237);
+  --red: rgb(236,19,19);
+  --red-bg: rgb(254,226,226);
+  --amber: rgb(221,134,41);
+  --blue: rgb(59,130,246);
+  --blue-bg: rgb(219,234,254);
+  --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: var(--sans); background: rgb(242,243,245); color: var(--fg);
+  display:flex; gap:32px; padding:32px; align-items:flex-start; flex-wrap:wrap; }
+h1 { font-size:15px; font-weight:600; width:100%; letter-spacing:-.01em; }
+p.note { width:100%; font-size:12px; color:var(--fg-2); margin:-18px 0 4px; }
+.board { display:flex; flex-direction:column; gap:12px; }
+.board-label { font-size:11px; color:var(--fg-3); font-family:var(--mono); }
+
+/* ── 应用窗口 mock：1280px 桌面窗 ── */
+.win { position:relative; width:1280px; height:760px; background:var(--bg); border:1px solid var(--bd2);
+  border-radius:12px; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow: 0 8px 24px rgba(15,17,21,.06); }
+.titlebar { height:36px; display:flex; align-items:center; gap:8px; padding:0 12px;
+  border-bottom:1px solid var(--bd1); background:var(--bg-2); flex:none; }
+.titlebar .brand { font-size:12px; font-weight:600; }
+.titlebar .traffic { margin-left:auto; display:flex; gap:6px; }
+.traffic i { width:12px; height:12px; border-radius:50%; background:var(--dim); opacity:.6; }
+.win-body { flex:1; display:flex; min-height:0; }
+
+/* 会话侧栏 rail（焦点态下收起成图标列） */
+.rail { width:56px; border-right:1px solid var(--bd1); background:var(--bg-2);
+  display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px 0; }
+.rail .ic { width:32px; height:32px; border-radius:8px; display:grid; place-items:center;
+  color:var(--fg-3); font-size:13px; }
+.rail .ic.on { background:var(--hover); color:var(--fg); }
+
+/* 会话侧栏（常态） */
+.sidebar { width:264px; border-right:1px solid var(--bd1); background:var(--bg-2); padding:10px; }
+.sidebar .row { height:30px; display:flex; align-items:center; gap:6px; font-size:12px;
+  padding:0 8px; border-radius:6px; color:var(--fg-2); }
+.sidebar .row.on { background:var(--hover); color:var(--fg); font-weight:600; }
+
+/* 中间聊天（常态占满 / 焦点态缩成小窗） */
+.chat { flex:1; display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--bd1); }
+.chat .msgs { flex:1; padding:16px 20px; display:flex; flex-direction:column; gap:14px; overflow:hidden; }
+.msg { max-width:78%; font-size:13px; line-height:1.6; }
+.msg .who { font-size:10.5px; color:var(--fg-3); margin-bottom:3px; }
+.msg.user { align-self:flex-end; background:var(--bg-2); border:1px solid var(--bd1);
+  border-radius:12px 12px 2px 12px; padding:8px 12px; }
+.msg.ai { align-self:flex-start; }
+.msg.ai .body { white-space:pre-wrap; }
+.msg .code { font-family:var(--mono); font-size:11px; background:var(--bg-2);
+  border:1px solid var(--bd1); border-radius:8px; padding:8px 10px; margin-top:6px; color:var(--fg-2); }
+.typing { align-self:flex-start; display:flex; gap:4px; padding:6px 0; }
+.typing i { width:6px; height:6px; border-radius:50%; background:var(--dim); }
+.chat .inputbar { flex:none; border-top:1px solid var(--bd1); padding:10px 12px;
+  display:flex; align-items:center; gap:8px; }
+.chat .inputbar .box { flex:1; height:32px; border:1px solid var(--bd2); border-radius:8px;
+  background:var(--bg); font-size:12px; color:var(--fg-3); display:flex; align-items:center; padding:0 10px; }
+.chat .inputbar .send { width:32px; height:32px; border-radius:8px; border:0; background:var(--fg);
+  color:#fff; display:grid; place-items:center; font-size:12px; }
+
+/* ── 右坞（details）：三标签 + 头部按钮排（含新的「放大」） ── */
+.dock { width:560px; flex:none; display:flex; flex-direction:column; min-width:0; }
+.tabs { display:flex; gap:4px; padding:8px 10px 0; border-bottom:1px solid var(--bd1); align-items:center; }
+.tab { position:relative; padding:6px 10px 8px; font-size:12.5px; color:var(--fg-3);
+  cursor:pointer; border-radius:6px 6px 0 0; user-select:none; }
+.tab:hover { color:var(--fg-2); background:var(--hover); }
+.tab.active { color:var(--fg); font-weight:600; }
+.tab.active::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px;
+  height:2px; background:var(--fg); border-radius:1px; }
+.tab .count { font-size:10.5px; color:var(--fg-3); margin-left:3px; font-family:var(--mono); }
+.head-acts { margin-left:auto; display:flex; gap:2px; padding-bottom:4px; }
+.head-acts .hbtn { width:26px; height:26px; border-radius:6px; display:grid; place-items:center;
+  color:var(--fg-3); }
+.head-acts .hbtn:hover { background:var(--hover); color:var(--fg-2); }
+.head-acts .hbtn svg { width:13px; height:13px; }
+/* 「放大」是本轮新增的头部按钮：进入焦点模式 */
+.head-acts .hbtn.zoom { color:var(--fg-2); }
+.dock .body { flex:1; overflow:hidden; display:flex; min-height:0; }
+
+/* 双栏（粗略视图）：列表 + diff */
+.list { width:220px; flex:none; border-right:1px solid var(--bd1); overflow:hidden; }
+.diffpane { flex:1; min-width:0; display:flex; flex-direction:column; }
+.dhead { padding:8px 10px; border-bottom:1px solid var(--bd1); display:flex; gap:8px; align-items:center; }
+.dhead .path { font-family:var(--mono); font-size:11.5px; }
+.dhead .stat { margin-left:auto; font-family:var(--mono); font-size:11px; }
+.dhead .stat b { color:var(--green); } .dhead .stat i { color:var(--red); font-style:normal; }
+.dline { display:flex; font-family:var(--mono); font-size:11px; line-height:18px; }
+.dline .no { width:26px; text-align:right; padding-right:8px; color:var(--fg-3); opacity:.55; }
+.dline .code { white-space:pre; padding-right:10px; overflow:hidden; text-overflow:ellipsis; }
+.dline.add { background:var(--green-bg); } .dline.del { background:var(--red-bg); }
+.dline.hunk { color:var(--blue); background:var(--blue-bg); font-size:10.5px; }
+
+/* 行样式复用 git 原型 */
+.brow { display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; font-size:12px; }
+.brow:hover { background:var(--hover); }
+.brow .badge { width:16px; height:16px; border-radius:4px; font-size:10px; font-weight:700;
+  display:grid; place-items:center; font-family:var(--mono); flex:none; }
+.badge.m { color:var(--amber); } .badge.u { color:var(--green); }
+.brow .fname { font-family:var(--mono); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sect { height:26px; display:flex; align-items:center; padding:0 10px; font-size:11px; color:var(--fg-3);
+  background:var(--bg-2); border-top:1px solid var(--bd1); border-bottom:1px solid var(--bd1); }
+.treerow { display:flex; align-items:center; gap:5px; height:28px; padding:0 10px; font-size:12.5px; }
+.treerow .name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.treerow svg { width:13px; height:13px; color:var(--fg-3); flex:none; }
+
+/* ── 焦点态：聊天小窗 ── */
+.chat-mini { width:340px; flex:none; border-right:1px solid var(--bd2); background:var(--bg);
+  display:flex; flex-direction:column; min-width:0; }
+.chat-mini .mhead { height:38px; flex:none; display:flex; align-items:center; gap:6px; padding:0 10px;
+  border-bottom:1px solid var(--bd1); background:var(--bg-2); }
+.chat-mini .mhead .t { font-size:11.5px; font-weight:600; overflow:hidden; white-space:nowrap;
+  text-overflow:ellipsis; }
+.chat-mini .mhead .live { width:6px; height:6px; border-radius:50%; background:var(--green); flex:none; }
+.chat-mini .mhead .mbtn { margin-left:auto; width:24px; height:24px; border-radius:6px;
+  display:grid; place-items:center; color:var(--fg-3); }
+.chat-mini .mhead .mbtn:hover { background:var(--hover); }
+.chat-mini .mhead .mbtn svg { width:12px; height:12px; }
+.chat-mini .mmsgs { flex:1; overflow:hidden; padding:10px; display:flex; flex-direction:column; gap:10px; }
+.mmsg { max-width:92%; font-size:11.5px; line-height:1.55; }
+.mmsg .who { font-size:9.5px; color:var(--fg-3); margin-bottom:2px; }
+.mmsg.user { align-self:flex-end; background:var(--bg-2); border:1px solid var(--bd1);
+  border-radius:10px 10px 2px 10px; padding:6px 10px; }
+.mmsg.ai { align-self:flex-start; }
+.mmsg .mcode { font-family:var(--mono); font-size:10px; background:var(--bg-2);
+  border:1px solid var(--bd1); border-radius:6px; padding:6px 8px; margin-top:4px; color:var(--fg-2); }
+.mtyping { align-self:flex-start; display:flex; gap:3px; }
+.mtyping i { width:5px; height:5px; border-radius:50%; background:var(--dim); }
+.chat-mini .minput { flex:none; border-top:1px solid var(--bd1); padding:8px 10px;
+  display:flex; gap:6px; align-items:center; }
+.chat-mini .minput .box { flex:1; height:30px; border:1px solid var(--bd2); border-radius:8px;
+  font-size:11.5px; color:var(--fg-3); display:flex; align-items:center; padding:0 10px; background:var(--bg); }
+.chat-mini .minput .send { width:30px; height:30px; border-radius:8px; border:0; background:var(--fg);
+  color:#fff; display:grid; place-items:center; font-size:11px; }
+
+/* 焦点态的坞占满剩余宽度 */
+.dock-focus { flex:1; min-width:0; display:flex; flex-direction:column; }
+.dock-focus .body { flex:1; display:flex; min-height:0; }
+.f-list { width:300px; flex:none; border-right:1px solid var(--bd1); overflow:hidden; }
+.f-diff { flex:1; min-width:0; display:flex; flex-direction:column; }
+.codeview { flex:1; min-width:0; overflow:hidden; padding:8px 0; font-family:var(--mono); font-size:11.5px; line-height:19px; }
+.codeview .ln { display:flex; }
+.codeview .ln .no { width:34px; text-align:right; padding-right:10px; color:var(--fg-3); opacity:.5; }
+.kw { color:#7c3aed; } .str { color:#047857; } .fn { color:#1d4ed8; } .cm { color:var(--fg-3); font-style:italic; }
+
+/* ── 方案 A：焦点态聊天浮动块（左下角悬浮卡片） ── */
+.float-chat { position:absolute; left:68px; bottom:12px; width:340px; height:420px;
+  background:var(--bg); border:1px solid var(--bd3); border-radius:12px;
+  box-shadow:0 12px 32px rgba(15,17,21,.14); display:flex; flex-direction:column; overflow:hidden; z-index:5; }
+.float-chat .mhead { height:36px; flex:none; display:flex; align-items:center; gap:6px; padding:0 10px;
+  border-bottom:1px solid var(--bd1); background:var(--bg-2); cursor:grab; }
+.float-chat .mhead .t { font-size:11.5px; font-weight:600; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.float-chat .mhead .live { width:6px; height:6px; border-radius:50%; background:var(--green); flex:none; }
+.float-chat .mhead .mbtn { margin-left:auto; width:22px; height:22px; border-radius:6px;
+  display:grid; place-items:center; color:var(--fg-3); }
+.float-chat .mhead .mbtn:hover { background:var(--hover); }
+.float-chat .mhead svg { width:11px; height:11px; }
+.float-chat .mmsgs { flex:1; overflow:hidden; padding:8px 10px; display:flex; flex-direction:column; gap:8px; }
+.float-chat .mmsg { max-width:92%; font-size:11px; line-height:1.5; }
+.float-chat .mmsg .who { font-size:9px; color:var(--fg-3); margin-bottom:2px; }
+.float-chat .mmsg.user { align-self:flex-end; background:var(--bg-2); border:1px solid var(--bd1);
+  border-radius:9px 9px 2px 9px; padding:5px 9px; }
+.float-chat .mmsg.ai { align-self:flex-start; }
+.float-chat .mmsg .mcode { font-family:var(--mono); font-size:9.5px; background:var(--bg-2);
+  border:1px solid var(--bd1); border-radius:6px; padding:5px 7px; margin-top:3px; color:var(--fg-2); }
+.float-chat .mtyping { align-self:flex-start; display:flex; gap:3px; }
+.float-chat .mtyping i { width:5px; height:5px; border-radius:50%; background:var(--dim); }
+.float-chat .minput { flex:none; border-top:1px solid var(--bd1); padding:8px 10px; display:flex; gap:6px; align-items:center; }
+.float-chat .minput .box { flex:1; height:28px; border:1px solid var(--bd2); border-radius:8px;
+  font-size:11px; color:var(--fg-3); display:flex; align-items:center; padding:0 10px; background:var(--bg); }
+.float-chat .minput .send { width:28px; height:28px; border-radius:8px; border:0; background:var(--fg);
+  color:#fff; display:grid; place-items:center; font-size:11px; }
+/* 浮动块收起态：左下角小圆钮（流式时绿点脉动） */
+.float-bubble { position:absolute; left:68px; bottom:12px; width:40px; height:40px; border-radius:50%;
+  background:var(--fg); color:#fff; display:grid; place-items:center; font-size:14px;
+  box-shadow:0 8px 20px rgba(15,17,21,.25); z-index:5; }
+.float-bubble i { position:absolute; right:-1px; top:-1px; width:10px; height:10px; border-radius:50%;
+  background:var(--green); border:2px solid var(--bg); }
+
+/* ── 方案 B：独立小窗（OS 窗口 mock） ── */
+.separate-win { width:400px; height:560px; background:var(--bg); border:1px solid var(--bd3);
+  border-radius:12px; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 16px 40px rgba(15,17,21,.18); }
+.separate-win .shead { height:34px; flex:none; display:flex; align-items:center; gap:8px; padding:0 12px;
+  border-bottom:1px solid var(--bd1); background:var(--bg-2); }
+.separate-win .shead .brand { font-size:11px; font-weight:600; }
+.separate-win .shead .live { width:6px; height:6px; border-radius:50%; background:var(--green); }
+.separate-win .shead .pin { font-size:9.5px; color:var(--fg-3); border:1px solid var(--bd2);
+  border-radius:8px; padding:1px 6px; margin-left:4px; }
+.separate-win .smsgs { flex:1; overflow:hidden; padding:12px; display:flex; flex-direction:column; gap:10px; }
+.separate-win .sinput { flex:none; border-top:1px solid var(--bd1); padding:10px 12px; display:flex; gap:8px; }
+.separate-win .sinput .box { flex:1; height:32px; border:1px solid var(--bd2); border-radius:8px;
+  font-size:12px; color:var(--fg-3); display:flex; align-items:center; padding:0 10px; background:var(--bg); }
+.separate-win .sinput .send { width:32px; height:32px; border-radius:8px; border:0; background:var(--fg);
+  color:#fff; display:grid; place-items:center; font-size:12px; }
+/* 放大按钮的两种态说明标签 */
+.zoommark { position:absolute; margin-top:-30px; margin-left:610px; font-size:10px; color:var(--blue);
+  font-family:var(--mono); background:var(--blue-bg); padding:2px 6px; border-radius:4px; }
+</style>
+</head>
+<body>
+<h1>LX-DSH 焦点模式 · 右坞放大 + 聊天小窗（design-taste-frontend 流程）</h1>
+<p class="note">Design Read：延续 git 面板原型的 dsw 体系（VARIANCE 3 / MOTION 2 / DENSITY 5）。交互主线：右坞是「粗略视图」（列表+diff 双栏，480-860 可拖）→ 头部「放大」按钮进入焦点态：git/文件接管主区，聊天缩成左侧 340px 小窗继续跑（可读可发），再点收起或 Esc 还原。动效仅布局位移 200ms + 按压反馈。示例数据均标注 mock。</p>
+
+<div class="board">
+<div class="board-label">画板 1 · 常态：右坞粗略视图 + 新增「放大」按钮</div>
+<div class="win">
+  <div class="titlebar"><span class="brand">LX-DSH</span>
+    <span class="traffic"><i></i><i></i><i></i></span></div>
+  <div class="win-body">
+    <div class="sidebar">
+      <div class="row">💬 dsh 右栏三标签</div>
+      <div class="row on">🌿 git 面板收尾</div>
+      <div class="row">📦 0.3.3 出包</div>
+      <div class="row">🧹 lint 误报排查</div>
+    </div>
+    <div class="chat">
+      <div class="msgs">
+        <div class="msg user"><div class="body">把 GitPanel 的 diff 加上行号和 hunk 底色</div></div>
+        <div class="msg ai"><div class="who">LxCode</div><div class="body">已按设计稿重写：行号由 hunk 头驱动，add/del 分别用绿/红底色。改动在 ui-git/src/client/GitPanel.tsx。</div>
+          <div class="code">@@ -14,7 +14,9 @@ export function apply(ctx) {</div></div>
+        <div class="typing"><i></i><i></i><i></i></div>
+      </div>
+      <div class="inputbar"><div class="box">发消息给 LxCode…</div><button class="send">↑</button></div>
+    </div>
+    <div class="dock">
+      <div class="tabs">
+        <div class="tab">文件</div>
+        <div class="tab active">Git <span class="count">3</span></div>
+        <div class="tab">工具</div>
+        <div class="head-acts">
+          <div class="hbtn zoom" title="放大（接管主区，聊天缩为小窗）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9v4h4M13 7V3H9M3 3l4 4M13 13l-4-4"/></svg></div>
+          <div class="hbtn" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="list">
+          <div class="brow" style="padding-top:6px"><span class="badge m">M</span><span class="fname">GitPanel.tsx</span></div>
+          <div class="brow"><span class="badge u">U</span><span class="fname">GitPanel.module.css</span></div>
+          <div class="brow"><span class="badge m">M</span><span class="fname">locales.ts</span></div>
+          <div class="sect">提交历史</div>
+          <div class="brow"><span style="color:var(--blue);font-family:var(--mono);font-size:10.5px">0cf0ea3</span><span class="fname" style="opacity:.7">IDE 双栏重构</span></div>
+        </div>
+        <div class="diffpane">
+          <div class="dhead"><span class="path">GitPanel.tsx</span><span class="stat"><b>+12</b> <i>−3</i></span></div>
+          <div class="dline hunk"><span class="no">··</span><span class="code">@@ -14,7 +14,9 @@ function DiffView() {</span></div>
+          <div class="dline"><span class="no">14</span><span class="code">  const lines = parseDiff(text)</span></div>
+          <div class="dline add"><span class="no">15</span><span class="code">  const stat = useMemo(() => statOf(lines), [lines])</span></div>
+          <div class="dline add"><span class="no">16</span><span class="code">  return <div className={css.diff} data-testid…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="board-label">画板 1 · 右坞 560px（可拖 480-860）粗略浏览；头部右侧新增「放大」（四向外箭头），旁边是关闭。列表 220 + diff 340 —— 看大 diff 时空间不足，这是焦点模式的入口动机</div>
+</div>
+
+<div class="board">
+<div class="board-label">画板 2 · 焦点态（点放大后）：git 接管主区，聊天缩成左侧小窗</div>
+<div class="win">
+  <div class="titlebar"><span class="brand">LX-DSH</span>
+    <span class="traffic"><i></i><i></i><i></i></span></div>
+  <div class="win-body">
+    <div class="rail">
+      <div class="ic">💬</div><div class="ic on">🌿</div><div class="ic">📦</div><div class="ic on" style="opacity:.35">🧹</div>
+    </div>
+        <div class="float-chat">
+      <div class="mhead">
+        <span class="live"></span><span class="t">git 面板收尾</span>
+        <div class="mbtn" title="收起聊天"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div class="mmsgs">
+        <div class="mmsg user"><div class="body">行号和 hunk 底色都对了，再看提交历史的 diff</div></div>
+        <div class="mmsg ai"><div class="who">LxCode</div><div class="body">已支持：历史行点击后右侧显示该次提交的完整 diff（show --format=）。</div>
+          <div class="mcode">a2cf89e skill: vendor design-taste-frontend</div></div>
+        <div class="mtyping"><i></i><i></i><i></i></div>
+      </div>
+      <div class="minput"><div class="box">继续对话…</div><button class="send">↑</button></div>
+    </div>
+    <div class="dock-focus"><div class="dock-focus">
+      <div class="tabs">
+        <div class="tab">文件</div>
+        <div class="tab active">Git <span class="count">3</span></div>
+        <div class="tab">工具</div>
+        <div class="head-acts">
+          <div class="hbtn zoom" title="收起（还原常态）" style="color:var(--fg)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3H3v4M9 13h4V9M3 3l4 4M13 13l-4-4"/></svg></div>
+          <div class="hbtn" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="f-list">
+          <div class="sect" style="border-top:0">更改（3）</div>
+          <div class="brow"><span class="badge m">M</span><span class="fname">GitPanel.tsx</span></div>
+          <div class="brow"><span class="badge u">U</span><span class="fname">GitPanel.module.css</span></div>
+          <div class="brow"><span class="badge m">M</span><span class="fname">locales.ts</span></div>
+          <div class="sect">提交历史</div>
+          <div class="brow"><span style="color:var(--blue);font-family:var(--mono);font-size:10.5px">a2cf89e</span><span class="fname" style="opacity:.75">skill: vendor design-taste-frontend</span></div>
+          <div class="brow" style="background:var(--hover)"><span style="color:var(--blue);font-family:var(--mono);font-size:10.5px">0cf0ea3</span><span class="fname" style="opacity:.75">IDE 双栏重构</span></div>
+          <div class="brow"><span style="color:var(--blue);font-family:var(--mono);font-size:10.5px">e398576</span><span class="fname" style="opacity:.75">fix: zod 内联</span></div>
+        </div>
+        <div class="f-diff">
+          <div class="dhead"><span class="path">GitPanel.tsx · 0cf0ea3</span><span class="stat"><b>+64</b> <i>−21</i></span></div>
+          <div class="dline hunk"><span class="no">··</span><span class="code">@@ -14,7 +14,9 @@ function DiffView() {</span></div>
+          <div class="dline"><span class="no">14</span><span class="code">  const lines = useMemo(() => parseDiff(text), [text])</span></div>
+          <div class="dline del"><span class="no">15</span><span class="code">  return <div className={css.root}>{left}{right}</div></span></div>
+          <div class="dline add"><span class="no">15</span><span class="code">  <span class="kw">const</span> stat = useMemo(() => statOf(lines), [lines])</span></div>
+          <div class="dline add"><span class="no">16</span><span class="code">  <span class="cm">// 行号由 hunk 头驱动，stat 显示在 diff 头右侧</span></span></div>
+          <div class="dline"><span class="no">16</span><span class="code">  <span class="kw">return</span> &lt;div className={css.diff} data-testid=<span class="str">"git-diff"</span>&gt;</span></div>
+          <div class="dline"><span class="no">17</span><span class="code">    &lt;div className={css.diffHead}&gt;…&lt;/div&gt;</span></div>
+          <div class="dline hunk"><span class="no">··</span><span class="code">@@ -60,6 +62,28 @@ function parseDiff(text: string): DiffLine[] {</span></div>
+          <div class="dline add"><span class="no">63</span><span class="code">  <span class="kw">const</span> hit = /@@ -(\d+)(?:,\d+)? \+(\d+)/.<span class="fn">exec</span>(line)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="board-label">画板 2 · 焦点态（方案 A）：rail 56 + git/files 占满全宽（≈1224）；聊天是左下角 340×420 浮动卡片（悬浮于内容上，头部可拖动/可收起），绿色 live 点 = 会话仍在流式；放大按钮变收起态</div>
+</div>
+
+<div class="board">
+<div class="board-label">画板 3 · 焦点态 · 文件页：全宽树 + 大代码视图</div>
+<div class="win">
+  <div class="titlebar"><span class="brand">LX-DSH</span>
+    <span class="traffic"><i></i><i></i><i></i></span></div>
+  <div class="win-body">
+    <div class="rail">
+      <div class="ic on">💬</div><div class="ic">🌿</div><div class="ic">📦</div><div class="ic">🧹</div>
+    </div>
+    <div class="chat-mini">
+      <div class="mhead"><span class="live"></span><span class="t">git 面板收尾</span>
+        <div class="mbtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3 3 7l4 4"/></svg></div></div>
+      <div class="mmsgs">
+        <div class="mmsg user"><div class="body">FilesPanel 也放大看看，代码要能完整读</div></div>
+        <div class="mmsg ai"><div class="who">LxCode</div><div class="body">焦点态下文件页与 git 同享主区：左树 300 + 右代码视图全宽，shiki 高亮。</div></div>
+      </div>
+      <div class="minput"><div class="box">继续对话…</div><button class="send">↑</button></div>
+    </div>
+    <div class="dock-focus">
+      <div class="tabs">
+        <div class="tab active">文件</div>
+        <div class="tab">Git <span class="count">3</span></div>
+        <div class="tab">工具</div>
+        <div class="head-acts">
+          <div class="hbtn zoom" style="color:var(--fg)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3H3v4M9 13h4V9M3 3l4 4M13 13l-4-4"/></svg></div>
+          <div class="hbtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="f-list">
+          <div class="treerow" style="font-weight:600">▾ 📁 packages</div>
+          <div class="treerow" style="padding-left:24px;font-weight:600">▾ 📁 client</div>
+          <div class="treerow" style="padding-left:38px;font-weight:600">▾ 📁 ui-git</div>
+          <div class="treerow" style="padding-left:52px;background:var(--hover)">📄 GitPanel.tsx <span class="badge m" style="margin-left:auto">M</span></div>
+          <div class="treerow" style="padding-left:52px">📄 GitPanel.module.css</div>
+          <div class="treerow" style="padding-left:52px">📄 FilesPanel.tsx</div>
+          <div class="treerow" style="padding-left:38px">📄 index.ts</div>
+        </div>
+        <div class="f-diff">
+          <div class="dhead"><span class="path">packages/client/ui-git/src/client/GitPanel.tsx</span><span class="stat" style="color:var(--fg-3)">268 行</span></div>
+          <div class="codeview">
+            <div class="ln"><span class="no">41</span><span><span class="cm">/** Stat for the diff head. */</span></span></div>
+            <div class="ln"><span class="no">42</span><span><span class="kw">function</span> <span class="fn">statOf</span>(lines: <span class="kw">readonly</span> DiffLine[]): { add: <span class="kw">number</span>; del: <span class="kw">number</span> } {</span></div>
+            <div class="ln"><span class="no">43</span><span>  <span class="kw">let</span> add = 0</span></div>
+            <div class="ln"><span class="no">44</span><span>  <span class="kw">let</span> del = 0</span></div>
+            <div class="ln"><span class="no">45</span><span>  <span class="kw">for</span> (<span class="kw">const</span> line <span class="kw">of</span> lines) {</span></div>
+            <div class="ln"><span class="no">46</span><span>    <span class="kw">if</span> (line.kind === <span class="str">'add'</span>) add += 1</span></div>
+            <div class="ln"><span class="no">47</span><span>    <span class="kw">if</span> (line.kind === <span class="str">'del'</span>) del += 1</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="board-label">画板 3 · 文件页焦点态（方案 A）：树 300 + 代码视图吃满 ~880px；浮动聊天卡（360 高）悬浮左下，不占布局列</div>
+</div>
+
+<div class="board">
+<div class="board-label">画板 5 · 备选方案 B：聊天弹成独立小窗（OS 窗口，置顶）</div>
+<div style="display:flex;gap:20px;align-items:flex-start">
+  <div class="win" style="width:760px;height:560px">
+    <div class="titlebar"><span class="brand">LX-DSH</span>
+      <span class="traffic"><i></i><i></i><i></i></span></div>
+    <div class="win-body">
+      <div class="rail">
+        <div class="ic">💬</div><div class="ic on">🌿</div><div class="ic">📦</div><div class="ic">🧹</div>
+      </div>
+      <div class="dock-focus">
+        <div class="tabs">
+          <div class="tab">文件</div>
+          <div class="tab active">Git <span class="count">3</span></div>
+          <div class="tab">工具</div>
+          <div class="head-acts">
+            <div class="hbtn zoom" style="color:var(--fg)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3H3v4M9 13h4V9M3 3l4 4M13 13l-4-4"/></svg></div>
+            <div class="hbtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg></div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="f-list">
+            <div class="sect" style="border-top:0">更改（3）</div>
+            <div class="brow"><span class="badge m">M</span><span class="fname">GitPanel.tsx</span></div>
+            <div class="brow"><span class="badge u">U</span><span class="fname">GitPanel.module.css</span></div>
+            <div class="sect">提交历史</div>
+            <div class="brow"><span style="color:var(--blue);font-family:var(--mono);font-size:10.5px">a2cf89e</span><span class="fname" style="opacity:.75">skill: vendor design-taste-frontend</span></div>
+          </div>
+          <div class="f-diff">
+            <div class="dhead"><span class="path">GitPanel.tsx</span><span class="stat"><b>+64</b> <i>−21</i></span></div>
+            <div class="dline hunk"><span class="no">··</span><span class="code">@@ -14,7 +14,9 @@ function DiffView() {</span></div>
+            <div class="dline"><span class="no">14</span><span class="code">  const lines = useMemo(() => parseDiff(text), [text])</span></div>
+            <div class="dline add"><span class="no">15</span><span class="code">  const stat = useMemo(() => statOf(lines), [lines])</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="separate-win">
+    <div class="shead"><span class="brand">LX-DSH · 会话</span><span class="live"></span><span class="pin">置顶</span></div>
+    <div class="smsgs">
+      <div class="mmsg user"><div class="body">看下 0cf0ea3 这次提交的完整 diff</div></div>
+      <div class="mmsg ai"><div class="who">LxCode</div><div class="body">主窗口里已展开。聊天挪到这个独立小窗，主区完整给代码。</div>
+        <div class="mcode">a2cf89e skill: vendor design-taste-frontend</div></div>
+      <div class="mtyping"><i></i><i></i><i></i></div>
+    </div>
+    <div class="sinput"><div class="box">继续对话…</div><button class="send">↑</button></div>
+  </div>
+</div>
+<div class="board-label">方案 B：主窗纯 IDE（rail 56 + git/files 占满）；聊天是独立 OS 小窗（400px，always-on-top 置顶，可与主窗并排/重叠）。优点：主区最大化、聊天可拖到任意位置；代价：Electron 子窗口 + 状态桥接，实现重于方案 A</div>
+</div>
+<div class="board">
+<div class="board-label">画板 4 · 状态周期与进出规则</div>
+<div style="display:flex;gap:16px;flex-wrap:wrap">
+  <div class="win" style="width:420px;height:300px">
+    <div class="titlebar"><span class="brand">LX-DSH</span><span class="traffic"><i></i><i></i><i></i></span></div>
+    <div class="win-body" style="align-items:center;justify-content:center">
+      <div style="text-align:center;color:var(--fg-3);font-size:12px;display:flex;flex-direction:column;gap:10px;padding:20px">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="margin:0 auto"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        <div>进入/退出焦点模式</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--fg-3)">200ms 布局位移（列宽 grid 动画），reduced-motion 直接切换</div>
+      </div>
+    </div>
+  </div>
+  <div class="board-label" style="max-width:360px;font-size:11px;line-height:2">
+    规则：<br>
+    · 进入：右坞头部「放大」按钮，或 Esc 之外的快捷入口<br>
+    · 退出：小窗头部「退出焦点」、再点收起按钮、或 Esc<br>
+    · 焦点态内切换 文件/Git/工具 标签：保持焦点<br>
+    · 关闭右坞（×）= 同时退出焦点态<br>
+    · 会话侧栏自动收成 rail（56px），退出后还原原宽<br>
+    · 聊天小窗 340px 常驻可交互：可读流式、可发送<br>
+    · focus 态宽度不写进拖拽偏好（临时态，退出即还原）
+  </div>
+</div>
+</div>
+
+</body>
+</html>

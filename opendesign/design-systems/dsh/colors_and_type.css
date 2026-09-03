@@ -1,0 +1,44 @@
+/* Design system: dsh (DeepSeek Harness web client)
+ * Mapped from packages/client/ui-theme/src/styles/design-platform.css
+ * (alias tokens resolve per theme; concrete values below are the LIGHT theme).
+ * This file anchors OpenDesign workflows to the real shipped system.
+ */
+:root {
+  /* surfaces */
+  --dsw-alias-bg-base: rgb(255, 255, 255);
+  --dsw-alias-bg-layer-1: rgb(255, 255, 255);
+  --dsw-alias-bg-layer-2: rgb(249, 250, 251);
+  --dsw-specific-sidebar-fill: rgb(249, 250, 251);
+  --dsw-alias-bg-skeleton: rgb(235, 238, 242);
+
+  /* labels */
+  --dsw-alias-label-primary: rgb(15, 17, 21);
+  --dsw-alias-label-secondary: rgb(97, 102, 107);
+  --dsw-alias-label-tertiary: rgb(129, 133, 140);
+  --dsw-alias-label-dimmed: rgb(207, 211, 214);
+
+  /* borders */
+  --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+  --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+  --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+
+  /* interactive */
+  --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+  --dsw-alias-button-primary-fill: rgb(15, 17, 21);
+  --dsw-alias-brand-primary: rgb(15, 17, 21);
+  --dsw-specific-input-major: rgb(255, 255, 255);
+
+  /* states */
+  --dsw-alias-state-success-primary: rgb(34, 197, 94);
+  --dsw-alias-state-success-tertiary: rgb(230, 250, 237);
+  --dsw-alias-state-error-primary: rgb(236, 19, 19);
+  --dsw-alias-state-error-secondary: rgb(254, 226, 226);
+  --dsw-alias-state-warn-primary: rgb(221, 134, 41);
+  --dsw-static-blue-500: rgb(59, 130, 246);
+  --dsw-static-blue-100: rgb(219, 234, 254);
+
+  /* type */
+  --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --dsw-font-mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+}

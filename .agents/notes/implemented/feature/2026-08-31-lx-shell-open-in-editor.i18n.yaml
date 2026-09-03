@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-lx-shell-open-in-editor.md
+2026-08-31-lx-shell-open-in-editor.md: e6bdc9eed7c76de893e467f9ed60477848530174
+2026-08-31-lx-shell-open-in-editor.zh.md: 7f9fd9c81d448c78cfebdf31232fc2d23b0089bd

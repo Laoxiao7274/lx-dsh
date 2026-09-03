@@ -1,0 +1,159 @@
+.root {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  position: relative;
+  overflow: hidden;
+}
+
+.leading {
+  flex-shrink: 0;
+}
+
+.chevron {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.title {
+  font-weight: 400;
+}
+
+.separator {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  margin: 0 8px;
+  border-radius: 1px;
+  background: var(--dsw-alias-label-caption);
+}
+
+/* Think text reads the secondary tier — one step under the body size
+(setting −1 at ≤14, setting −2 above), shared with every flow-row title
+and summary. */
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  white-space: nowrap;
+}
+
+.summaryText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* While the reasoning streams, its live summary line shimmers: a soft
+brightness valley sweeps through the text on a 2.25s loop (AICSS
+thinking-state). The rest tone stays legible between sweeps. */
+.summaryTextShimmer {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background: linear-gradient(
+    90deg,
+    var(--dsw-alias-label-tertiary) 0%,
+    var(--dsw-alias-label-tertiary) 30%,
+    color-mix(in srgb, var(--dsw-alias-label-tertiary) 45%, transparent) 45%,
+    color-mix(in srgb, var(--dsw-alias-label-tertiary) 45%, transparent) 55%,
+    var(--dsw-alias-label-tertiary) 70%,
+    var(--dsw-alias-label-tertiary) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: dsh-reasoning-label-shine 2.25s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+
+@keyframes dsh-reasoning-label-shine {
+  0%, 18% {
+    background-position: 100% 0;
+  }
+
+  82%, 100% {
+    background-position: 0% 0;
+  }
+}
+
+.summary[data-follow-end] {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.summary[data-follow-end] .summaryText,
+.summary[data-follow-end] .summaryTextShimmer {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 100%;
+  overflow: visible;
+  text-align: start;
+  text-overflow: clip;
+}
+
+/* The expanded reasoning body lives in a capped viewport (AICSS
+thinking-reasoning): it grows with the content up to the cap, then scrolls
+while following the stream. A soft bottom fade marks the overflow. */
+.thinkViewport {
+  max-height: 176px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.thinkViewport::-webkit-scrollbar {
+  display: none;
+}
+
+.thinkViewport[data-follow-end] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+}
+
+.thinkBody {
+  /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
+  padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta, 0px));
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  word-break: break-word;
+}
+
+.thinkLine {
+  margin: 0;
+  white-space: pre-wrap;
+  animation: dsh-reasoning-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes dsh-reasoning-line-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Completed thinking duration under the body, in the caption tone. */
+.thoughtFor {
+  padding: 2px 0 2px calc(22px + var(--dsh-content-font-delta, 0px));
+  color: var(--dsw-alias-label-caption);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summaryTextShimmer {
+    animation: none;
+  }
+
+  .thinkLine {
+    animation: none;
+  }
+}

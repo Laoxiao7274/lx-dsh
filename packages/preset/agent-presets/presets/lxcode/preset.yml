@@ -1,0 +1,3 @@
+name: LxCode
+description: LxCode —— 属于你的自定义编码 Agent。基于标准模式，带跨会话记忆与检查点、项目记忆检索，支持文件编辑、Shell、文件与网页检索、Skills、计划、目标、子代理和工作流。
+order: 2

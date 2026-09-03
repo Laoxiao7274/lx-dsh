@@ -1,0 +1,33 @@
+/* First-run stage: keep the product top bar visible, then let onboarding own
+   the complete workspace instead of presenting another settings modal. */
+.onboardingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+}
+
+/* Mask */
+.onboardingMask {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  /* 80px keeps the product top bar visible; a hosted shell's chrome shifts
+     that bar down, so the mask follows the hosted inset. */
+  top: calc(80px + var(--dsh-app-inset-top));
+  bottom: 0px;
+  background: rgba(0, 0, 0, 0.24);
+  /* Mask-blur */
+  backdrop-filter: blur(2px);
+}
+
+.onboardingStage {
+  position: absolute;
+  z-index: 1;
+  /* The stage owns the workspace below the product top bar; a hosted shell's
+     chrome sits above that, so the stage starts at the hosted inset. */
+  inset: var(--dsh-app-inset-top) 0 0;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-1);
+}

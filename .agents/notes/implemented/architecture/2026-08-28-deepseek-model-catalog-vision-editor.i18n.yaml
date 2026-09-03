@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-28-deepseek-model-catalog-vision-editor.md
+2026-08-28-deepseek-model-catalog-vision-editor.md: 8069e5cd0a4fffd0e0ff3df40f409b7f38709dc7
+2026-08-28-deepseek-model-catalog-vision-editor.zh.md: 54491892e07c81e3bf043ca6d7439cd73534d7a4
