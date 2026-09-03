@@ -1,18 +1,18 @@
-// assemble-dist.mjs — build the dsh runtime ENTIRELY from the deepseek-harness
-// source checkout into dist/dsh (+ dist/dsh.zip). Replaces the retired vendor
+// assemble-dist.mjs — build the dsh runtime ENTIRELY from the in-repo harness
+// subtree into dist/dsh (+ dist/dsh.zip). Replaces the retired vendor
 // flow (vendor-dsh.mjs npm-release copy + pack-vendor.mjs overlay list): every
 // @deepseek-ai package the backend loads now comes from THIS checkout's built
 // lib/ — there is no npm-release base and no per-package overlay list.
 //
 // Steps:
-//   1) pnpm run build in deepseek-harness (tsc -b host+client aggregates,
+//   1) pnpm run build in harness/ (tsc -b host+client aggregates,
 //      tsdown bundles, vite web frontend) — skippable with --skip-build
 //   2) pnpm --filter @deepseek-ai/dsh deploy --legacy --prod --config.*=…
 //      → dist/dsh: apps/cli plus its whole workspace dependency closure as
 //      real files (no symlinks), third-party deps from the store
 //   3) restore the direct dependencies pnpm's legacy hoister omits and
 //      materialize leftover symlinks (same treatment as
-//      deepseek-harness/scripts/build-exe-for-python-sdk.ts deployStaging)
+//      harness/scripts/build-exe-for-python-sdk.ts deployStaging)
 //   4) structural sanity: bin.js, web-frontend dist, wire-contract types
 //   5) prune runtime-irrelevant files via robocopy exclusions (~250 → ~120 MB)
 //      and 7za store-mode zip → dist/dsh.zip (electron-builder
@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const dshSrc = join(root, '..', 'deepseek-harness');
+const dshSrc = join(root, 'harness');
 const outDir = join(root, 'dist', 'dsh');
 const outZip = join(root, 'dist', 'dsh.zip');
 const stageDir = join(root, 'dist', '.dsh-stage');
@@ -39,22 +39,22 @@ const pnpm = () => (isWin ? 'pnpm.cmd' : 'pnpm');
 
 function buildFromSource() {
   if (skipBuild) {
-    console.log('[assemble] --skip-build: using the existing deepseek-harness lib/ build');
+    console.log('[assemble] --skip-build: using the existing harness/ lib/ build');
     return;
   }
-  console.log('[assemble] pnpm run build (deepseek-harness: tsc -b host+client, tsdown, vite web)...');
+  console.log('[assemble] pnpm run build (harness: tsc -b host+client, tsdown, vite web)...');
   const result = spawnSync(pnpm(), ['run', 'build'], {
     cwd: dshSrc, stdio: 'inherit', shell: isWin,
   });
   if (result.error !== undefined) throw result.error;
-  if (result.status !== 0) throw new Error('deepseek-harness build exited with ' + String(result.status ?? result.signal));
+  if (result.status !== 0) throw new Error('harness build exited with ' + String(result.status ?? result.signal));
 }
 
 // ── 2. deploy the CLI closure ───────────────────────────────────────────────
 
 function deploy() {
   if (!existsSync(join(dshSrc, 'apps', 'cli', 'lib', 'bin.js'))) {
-    throw new Error('deepseek-harness/apps/cli/lib/bin.js missing — the source build did not produce the CLI');
+    throw new Error('harness/apps/cli/lib/bin.js missing — the source build did not produce the CLI');
   }
   rmSync(outDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });
   console.log('[assemble] pnpm deploy (@deepseek-ai/dsh, legacy hoisted prod) → dist/dsh ...');
@@ -373,7 +373,7 @@ function sanity() {
 // ── main: build → deploy → repair → sanity → prune+zip ──────────────────────
 
 const t0 = Date.now();
-console.log('[assemble] building the dsh runtime from deepseek-harness source...');
+console.log('[assemble] building the dsh runtime from the harness/ subtree...');
 buildFromSource();
 deploy();
 restoreLegacyHoists();

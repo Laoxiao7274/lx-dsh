@@ -1,6 +1,6 @@
 // Brand mark shared by the startup shell and plugin window. The titlebar
 // itself is gone — the frameless window's chrome lives in the dsh web UI's
-// Session Header (deepseek-harness packages/client/ui-lx-shell).
+// Session Header (harness/packages/client/ui-lx-shell).
 import logoUrl from '@/assets/lx-logo.png';
 
 // Brand mark: the lx-code logo (rounded square, pre-baked in ui/src/assets).

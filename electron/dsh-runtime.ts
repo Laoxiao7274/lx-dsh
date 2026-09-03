@@ -13,7 +13,7 @@
 // release; it is gone on purpose.)
 //
 // Dev (app.isPackaged === false): run the workspace build directly —
-// <repo>/../deepseek-harness/apps/cli, whose node_modules links the workspace
+// <repo>/harness/apps/cli, whose node_modules links the workspace
 // packages to this checkout's built lib/.
 import { app } from 'electron';
 import { existsSync } from 'node:fs';
@@ -27,14 +27,15 @@ export function ensureDshRuntime(): string {
     log('dsh-runtime: LX_DSH_ROOT set but lib/bin.js missing — falling through');
   }
 
-  // Dev / unpackaged: run the deepseek-harness workspace build directly —
+  // Dev / unpackaged: run the harness workspace build directly —
   // every @deepseek-ai package resolves through the workspace to this
   // checkout's built lib/, so dev always runs the current source.
   if (!app.isPackaged) {
-    // __dirname = <lx-dsh>/dist-electron → up two levels is the DSH workspace root.
-    const workspace = join(__dirname, '..', '..', 'deepseek-harness', 'apps', 'cli');
+    // __dirname = <lx-dsh>/dist-electron → up two levels is the repo root,
+    // where the harness subtree lives after the single-repo merge.
+    const workspace = join(__dirname, '..', '..', 'harness', 'apps', 'cli');
     if (existsSync(join(workspace, 'lib', 'bin.js'))) return workspace;
-    log('dsh-runtime: workspace apps/cli/lib/bin.js missing — run `pnpm run build` in deepseek-harness (or npm run assemble)');
+    log('dsh-runtime: workspace apps/cli/lib/bin.js missing — run `pnpm run build` in harness/ (or npm run assemble)');
   }
 
   // Packaged: the runtime lives beside the app, already materialized.

@@ -14,8 +14,8 @@ import { initUpdater } from './updater.js';
 import { log } from './log.js';
 import { composeRemoteUrl, readSettings, writeSettings } from './settings.js';
 
-// The dsh runtime is built from the deepseek-harness source checkout: in dev
-// the backend runs the workspace build (deepseek-harness/apps/cli) directly;
+// The dsh runtime is built from the in-repo harness/ subtree: in dev
+// the backend runs the workspace build (harness/apps/cli) directly;
 // in a packaged build the runtime ships as resources/dsh/ — plain files, no
 // extraction (electron/dsh-runtime.ts). The
 // resolved root is handed to the backend after ensureDshRuntime() completes.

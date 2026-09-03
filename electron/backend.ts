@@ -36,7 +36,7 @@ export class DshBackend {
   state: BackendState = 'idle';
   baseUrl: string | null = null;
   dshVersion: string | null = null;
-  // Preferred dsh runtime root (dev: the deepseek-harness workspace build;
+  // Preferred dsh runtime root (dev: the harness/ workspace build;
   // packaged: resources/dsh/ shipped inside the installer). When set and
   // present, the backend runs that dsh instead of a global npm install.
   private vendorRoot: string | null = null;

@@ -1,6 +1,6 @@
 // Locate the global dsh install, a Node binary, and the wire-contract package.
 // Dependency-free; used by the M0 spike and (later) the Electron main process.
-// (The normal runtime path no longer lands here: dev runs the deepseek-harness
+// (The normal runtime path no longer lands here: dev runs the harness/
 // workspace build and packaged builds ship resources/dsh/ — see dsh-runtime.ts.)
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
