@@ -12,6 +12,7 @@ import { spawn, execFileSync, ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { app } from 'electron';
 import { findDshRoot, findNode, findContractRoot } from '../shared/find-dsh.mjs';
+import { ensureDshRuntime } from './dsh-runtime.js';
 import { log, logQuiet } from './log.js';
 
 export type BackendState = 'idle' | 'starting' | 'handshaking' | 'running' | 'failed' | 'stopping';
@@ -158,7 +159,10 @@ export class DshBackend {
       // A packaged build never falls back to the npm-global install: that copy
       // is whatever official release was installed once, and running it made
       // the app serve a stale UI while claiming to be current (0.3.0 incident).
-      dshRoot = findDshRoot(this.vendorRoot ?? undefined, { allowGlobal: !app.isPackaged });
+      // A restart without a resolved root (e.g. retry after a failed
+      // remote-connect boot) resolves the runtime here instead of reaching the
+      // npm-global fallback.
+      dshRoot = findDshRoot(this.vendorRoot ?? ensureDshRuntime(), { allowGlobal: !app.isPackaged });
       nodePath = findNode();
       findContractRoot(dshRoot);
       this.dshVersion = execFileSync(nodePath, [join(dshRoot, 'lib', 'bin.js'), '-V'], {
