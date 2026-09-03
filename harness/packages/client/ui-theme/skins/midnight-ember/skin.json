@@ -1,0 +1,16 @@
+{
+  "skinManifestVersion": 2,
+  "id": "midnight-ember",
+  "name": "余烬",
+  "nameEn": "Midnight Ember",
+  "author": "LX-DSH",
+  "tagline": "深紫夜幕 · 余烬橙强调 · 暖暗优先",
+  "description": "暖色暗优先调色板：深炭紫表面与余烬橙强调；亮色模式是冷纸灰配同样的余烬高光。",
+  "tags": ["purple", "orange", "dark", "warm"],
+  "accent": "#b4531f",
+  "order": 6,
+  "version": "1.0.0",
+  "contributes": {
+    "stylesheet": "skin.css"
+  }
+}

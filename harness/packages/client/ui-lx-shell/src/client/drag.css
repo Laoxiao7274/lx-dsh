@@ -1,0 +1,17 @@
+/* Global window-drag rules for the LX-DSH frameless shell. The lx-shell
+ * chrome stamps `data-lx-drag` onto the Session Header at mount (see
+ * LxHeaderChrome), so these rules only ever bind an element this plugin
+ * owns — no foreign selector is targeted. */
+
+[data-lx-drag] {
+  -webkit-app-region: drag;
+}
+
+[data-lx-drag] button,
+[data-lx-drag] input,
+[data-lx-drag] select,
+[data-lx-drag] textarea,
+[data-lx-drag] a,
+[data-lx-drag] [role='tab'] {
+  -webkit-app-region: no-drag;
+}

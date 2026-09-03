@@ -1,0 +1,6 @@
+/* Appearance section column (mirrors the General section's stack geometry). */
+
+.section {
+  display: flex;
+  flex-direction: column;
+}

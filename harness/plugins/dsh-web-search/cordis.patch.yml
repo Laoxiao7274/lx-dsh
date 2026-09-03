@@ -1,0 +1,3 @@
+- insert:
+    - id: web-search
+      name: '@laoxiao7274/dsh-web-search'

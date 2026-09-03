@@ -1,0 +1,16 @@
+{
+  "skinManifestVersion": 2,
+  "id": "verdigris",
+  "name": "铜绿",
+  "nameEn": "Verdigris",
+  "author": "LX-DSH",
+  "tagline": "深松绿表面 · 鼠尾草交互强调 · 暖象牙文本",
+  "description": "平静的绿青工作调色板：深松绿表面、鼠尾草交互强调与暖象牙文本。",
+  "tags": ["green", "teal", "calm", "flat"],
+  "accent": "#2e6b52",
+  "order": 5,
+  "version": "1.0.0",
+  "contributes": {
+    "stylesheet": "skin.css"
+  }
+}

@@ -1,0 +1,113 @@
+/* The brand-row update affordance: a green pill in the sidebar's brand
+ * typography, and the update dialog it opens. Green resolves through the
+ * state-success aliases (green-500/100 light, green-400/900 dark) so the pill
+ * reads in both themes without literal colors. */
+
+.pill {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 9px;
+  background: var(--dsw-alias-state-success-tertiary);
+  color: var(--dsw-alias-state-success-primary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 140ms ease;
+}
+
+.pill:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+/* A staged update is the action state: the pill fills with the success tint's
+   strong step so it reads as ready-to-go rather than informational. */
+.ready {
+  background: var(--dsw-alias-state-success-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+.pill:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-success-primary);
+}
+
+/* ── Update dialog ────────────────────────────────────────────────────────── */
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 320px;
+}
+
+.versionRows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  align-items: baseline;
+}
+
+.versionLabel {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.versionValue {
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  user-select: text;
+}
+
+.progressTrack {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dsw-alias-border-l2);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--dsw-alias-state-success-primary);
+  transition: width 200ms ease;
+}
+
+.changelogSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.changelogTitle {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.changelogText {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-secondary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 19px;
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+  user-select: text;
+}

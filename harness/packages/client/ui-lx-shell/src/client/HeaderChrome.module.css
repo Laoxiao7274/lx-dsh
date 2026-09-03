@@ -1,0 +1,62 @@
+/* Session Header window chrome strip: quiet icon buttons matching the
+ * header's label-tertiary tone; danger tint only on close hover. */
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Open-target picker: the one large combobox left of the window controls. */
+.toolPicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin-right: 2px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font: 400 12px/18px var(--dsw-font-family);
+  cursor: pointer;
+}
+
+.toolPicker:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.toolPicker:disabled {
+  cursor: default;
+}
+
+.toolPickerLabel {
+  white-space: nowrap;
+}
+
+.close:hover {
+  background: var(--dsw-static-danger-bg, rgba(228, 82, 82, 0.12));
+  color: var(--dsw-static-danger, #e45252);
+}

@@ -1,0 +1,36 @@
+/* Sidebar brand occupants: matched to the fallback brand row's typography
+ * (see SidebarRoot.module.css .fallbackBrandName). */
+
+.mark {
+  display: block;
+  border-radius: 6px;
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Version badge beside the brand name: mirrors the shipped brand row's
+ * build-revision pill (SidebarRoot.module.css .buildRevision) so the two
+ * read as the same anatomy. */
+.version {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-primary-inverted);
+  background: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  user-select: text;
+}

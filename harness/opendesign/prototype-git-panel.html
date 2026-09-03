@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LX-DSH 右栏设计稿 — 文件树 + Git（design-taste-frontend 流程产出）</title>
+<style>
+/* Design Read: 读作「开发者高频产品面板」，锚定 dsh 现有 --dsw 体系（单色 + 状态色），
+   刻度 VARIANCE 3 / MOTION 2 / DENSITY 5。全部数值取自 design-platform.css 亮色主题。 */
+:root {
+  --bg: rgb(255,255,255);
+  --bg-2: rgb(249,250,251);
+  --fg: rgb(15,17,21);
+  --fg-2: rgb(97,102,107);
+  --fg-3: rgb(129,133,140);
+  --dim: rgb(207,211,214);
+  --bd1: rgba(0,0,0,.04);
+  --bd2: rgba(0,0,0,.1);
+  --bd3: rgba(0,0,0,.12);
+  --hover: rgba(38,49,72,.06);
+  --green: rgb(34,197,94);
+  --green-bg: rgb(230,250,237);
+  --red: rgb(236,19,19);
+  --red-bg: rgb(254,226,226);
+  --amber: rgb(221,134,41);
+  --blue: rgb(59,130,246);
+  --blue-bg: rgb(219,234,254);
+  --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: var(--sans); background: rgb(242,243,245); color: var(--fg);
+  display:flex; gap:32px; padding:32px; align-items:flex-start; flex-wrap:wrap; }
+h1 { font-size:15px; font-weight:600; width:100%; letter-spacing:-.01em; }
+p.note { width:100%; font-size:12px; color:var(--fg-2); margin:-18px 0 4px; }
+.board { display:flex; flex-direction:column; gap:12px; }
+.board-label { font-size:11px; color:var(--fg-3); font-family:var(--mono); }
+
+/* ── 面板骨架：360px 默认宽，可拖 300-520 ── */
+.panel { width:360px; height:720px; background:var(--bg); border:1px solid var(--bd2);
+  border-radius:12px; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow: 0 8px 24px rgba(15,17,21,.06); }
+
+/* 标签条：下划线滑动是面板里仅有的两处动效之一（动机：状态切换反馈） */
+.tabs { display:flex; gap:4px; padding:8px 10px 0; border-bottom:1px solid var(--bd1); }
+.tab { position:relative; padding:6px 10px 8px; font-size:12.5px; color:var(--fg-3);
+  cursor:pointer; border-radius:6px 6px 0 0; user-select:none; }
+.tab:hover { color:var(--fg-2); background:var(--hover); }
+.tab.active { color:var(--fg); font-weight:600; }
+.tab.active::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px;
+  height:2px; background:var(--fg); border-radius:1px; }
+.tab .count { font-size:10.5px; color:var(--fg-3); margin-left:3px; font-family:var(--mono); }
+
+.body { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+
+/* ── 通用行：28px 紧凑行（DENSITY 5） ── */
+.row { display:flex; align-items:center; gap:6px; height:28px; padding:0 10px;
+  font-size:12.5px; cursor:default; }
+.row:hover { background:var(--hover); }
+.row:active { transform:translateY(.5px); }
+.row .glyph { width:14px; height:14px; flex:none; color:var(--fg-3); }
+.row .name { color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.row .dir { color:var(--fg-3); font-size:11px; white-space:nowrap; overflow:hidden; }
+
+/* 徽标：M 改 / U 未跟踪 / A 新增（git 惯例色，同族锁定） */
+.badge { flex:none; width:16px; height:16px; border-radius:4px; font-size:10px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; font-family:var(--mono); }
+.badge.m { color:var(--amber); background:transparent; }
+.badge.u { color:var(--green); background:transparent; }
+.badge.d { color:var(--red); background:transparent; }
+
+/* ── 文件页 ── */
+.repo-bar { display:flex; align-items:center; gap:8px; padding:10px 10px 8px; }
+.repo { font-size:12.5px; font-weight:600; }
+.chip { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px;
+  border:1px solid var(--bd2); border-radius:10px; font-size:11px; color:var(--fg-2);
+  font-family:var(--mono); }
+.chip svg { width:10px; height:10px; }
+.filter { margin:0 10px 8px; height:28px; border:1px solid var(--bd1); border-radius:8px;
+  background:var(--bg-2); display:flex; align-items:center; gap:6px; padding:0 10px; }
+.filter input { border:0; outline:0; background:transparent; font-size:12px; flex:1;
+  font-family:var(--sans); color:var(--fg); }
+.filter .hint { font-size:11px; color:var(--fg-3); font-family:var(--mono); }
+.sect { display:flex; align-items:center; gap:4px; height:26px; padding:0 10px;
+  font-size:11px; color:var(--fg-3); background:var(--bg-2); border-top:1px solid var(--bd1);
+  border-bottom:1px solid var(--bd1); }
+.indent-1 { padding-left:26px; } .indent-2 { padding-left:42px; } .indent-3 { padding-left:58px; }
+.chev { width:10px; height:10px; color:var(--fg-3); flex:none; }
+.dirty-dot { width:5px; height:5px; border-radius:50%; background:var(--amber); flex:none; margin-left:auto; }
+
+/* ── Git 页 ── */
+.branch-row { display:flex; align-items:center; gap:8px; padding:10px 10px 8px; }
+.branch { font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:5px; }
+.branch svg { width:12px; height:12px; }
+.sync { font-size:11px; color:var(--fg-3); display:flex; gap:6px; align-items:center; }
+.icon-btn { width:22px; height:22px; border-radius:6px; display:flex; align-items:center;
+  justify-content:center; margin-left:auto; color:var(--fg-3); }
+.icon-btn:hover { background:var(--hover); color:var(--fg-2); }
+.icon-btn:active { transform:scale(.96); }
+.icon-btn svg { width:12px; height:12px; }
+.change .name { font-family:var(--mono); font-size:11.5px; }
+.change .acts { display:none; margin-left:auto; gap:2px; }
+.change:hover .acts { display:flex; }
+.mini { width:20px; height:20px; border-radius:4px; display:flex; align-items:center;
+  justify-content:center; color:var(--fg-3); }
+.mini:hover { background:var(--bd1); color:var(--fg); }
+.mini svg { width:12px; height:12px; }
+.commit { padding:10px; border-top:1px solid var(--bd1); display:flex; flex-direction:column; gap:8px; }
+.commit textarea { resize:none; border:1px solid var(--bd2); border-radius:8px; height:56px;
+  padding:8px 10px; font-size:12px; font-family:var(--sans); outline:0; color:var(--fg); }
+.commit textarea::placeholder { color:var(--fg-3); }
+.commit textarea:focus { border-color:var(--fg-3); }
+.commit .meta { display:flex; align-items:center; justify-content:space-between; }
+.commit .hint { font-size:11px; color:var(--fg-3); }
+.btn { height:28px; padding:0 14px; border-radius:8px; border:0; font-size:12px; font-weight:600;
+  background:var(--fg); color:#fff; cursor:pointer; }
+.btn:disabled { opacity:.35; }
+.btn:not(:disabled):active { transform:translateY(.5px); }
+.log-row { display:flex; align-items:center; gap:8px; height:30px; padding:0 10px; }
+.log-row:hover { background:var(--hover); }
+.log-row .msg { font-size:12px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.log-row .hash { font-family:var(--mono); font-size:10.5px; color:var(--blue); flex:none; }
+.log-row .ago { margin-left:auto; font-size:10.5px; color:var(--fg-3); flex:none; }
+
+/* ── 状态周期（skill 4.5：完整状态，不是只有成功态） ── */
+.empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:8px; color:var(--fg-3); font-size:12px; }
+.empty svg { width:28px; height:28px; color:var(--dim); }
+.skel { height:28px; display:flex; align-items:center; gap:8px; padding:0 10px; }
+.skel i { height:10px; border-radius:4px; background:linear-gradient(90deg, var(--dim), var(--bd1), var(--dim));
+  background-size:200% 100%; animation:sh 1.2s infinite; }
+@keyframes sk { from { background-position:200% 0 } to { background-position:-200% 0 } }
+.notice { margin:12px 10px; padding:10px 12px; border:1px solid var(--bd2); border-left:3px solid var(--amber);
+  border-radius:8px; font-size:12px; color:var(--fg-2); line-height:1.5; }
+.notice b { color:var(--fg); }
+
+/* ── diff（第三块画板：面板内 unified diff） ── */
+.diff-head { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--bd1); }
+.diff-head .path { font-family:var(--mono); font-size:11.5px; color:var(--fg); }
+.diff-head .stat { font-size:11px; font-family:var(--mono); margin-left:auto; }
+.diff-head .stat b { color:var(--green); font-weight:600; }
+.diff-head .stat i { color:var(--red); font-style:normal; }
+.dline { display:flex; font-family:var(--mono); font-size:11px; line-height:18px; }
+.dline .no { width:26px; flex:none; text-align:right; padding-right:8px; color:var(--fg-3);
+  opacity:.55; user-select:none; }
+.dline .code { white-space:pre; padding-right:10px; }
+.dline.add { background:var(--green-bg); }
+.dline.add .sign { color:var(--green); }
+.dline.del { background:var(--red-bg); }
+.dline.del .sign { color:var(--red); }
+.dline .sign { width:14px; flex:none; text-align:center; color:var(--fg-3); user-select:none; }
+.dline.ctx { color:var(--fg-2); }
+.dline.hunk { color:var(--blue); background:var(--blue-bg); font-size:10.5px; }
+.kw { color:#7c3aed; } .str { color:#047857; } .fn { color:#1d4ed8; } .cm { color:var(--fg-3); font-style:italic; }
+</style>
+</head>
+<body>
+<h1>LX-DSH 右栏 · 文件树 + Git（design-taste-frontend 流程）</h1>
+<p class="note">Design Read：读作「开发者高频产品面板」，锚定 dsh 单色 --dsw 体系（neutral-bluish 亮色），刻度 VARIANCE 3 / MOTION 2 / DENSITY 5。行高 28px 紧凑清单，仅两处动效（标签下划线、按压反馈），状态周期完整（加载/干净/非 git 仓库）。示例数据均标注 mock。</p>
+
+<div class="board">
+<div class="board-label">画板 1 · 文件页（默认落点）</div>
+<div class="panel">
+  <div class="tabs">
+    <div class="tab active">文件</div>
+    <div class="tab">Git <span class="count">3</span></div>
+    <div class="tab">工具</div>
+  </div>
+  <div class="body">
+    <div class="repo-bar">
+      <span class="repo">deepseek-harness</span>
+      <span class="chip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="8" r="2"/><path d="M4 6v4M6 4h3a3 3 0 0 1 3 3v1"/></svg>main</span>
+      <span class="chip" style="border-color:transparent;background:var(--bg-2)">3⇡1⇣</span>
+    </div>
+    <div class="filter"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m11 11 3.5 3.5"/></svg><input placeholder="筛选文件"><span class="hint">Ctrl+F</span></div>
+    <!-- 目录：文件夹行 -->
+    <div class="row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 2h4.5A1.5 1.5 0 0 1 14 6.5v5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></svg><span class="name" style="font-weight:600">packages</span><span class="dirty-dot"></span></div>
+    <div class="row indent-1"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 2h4.5A1.5 1.5 0 0 1 14 6.5v5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></svg><span class="name" style="font-weight:600">client</span></div>
+    <div class="row indent-2"><svg class="chev" style="visibility:hidden" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="name">apply.ts</span><span class="badge m">M</span></div>
+    <div class="row indent-2"><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="name">slots.ts</span><span class="badge u">U</span></div>
+    <div class="row indent-1"><svg class="chev" style="visibility:hidden" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="name">index.ts</span></div>
+    <div class="row indent-1"><svg class="chev" style="visibility:hidden" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="name">AGENTS.md</span><span class="badge m">M</span></div>
+    <div class="row"><svg class="chev" style="visibility:hidden" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="name">package.json</span></div>
+    <div class="row"><svg class="chev" style="visibility:hidden" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg><svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="name">RELEASE_NOTES.md</span><span class="badge u">U</span></div>
+    <div class="row" style="color:var(--fg-3)"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>packages</div>
+  </div>
+</div>
+<div class="board-label">画板 1 · 文件页：树 28px 行 + 变更角标（M 琥珀 / U 绿 / D 红），悬停底色，目录含未提交变更时尾点提示</div>
+</div>
+
+<div class="board">
+<div class="board-label">画板 2 · Git 页</div>
+<div class="panel">
+  <div class="tabs">
+    <div class="tab">文件</div>
+    <div class="tab active">Git <span class="count">3</span></div>
+    <div class="tab">工具</div>
+  </div>
+  <div class="body">
+    <div class="branch-row">
+      <span class="branch"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="8" r="2"/><path d="M4 6v4M6 4h3a3 3 0 0 1 3 3v1"/></svg>main</span>
+      <span class="sync">↑3 ↓1</span>
+      <span class="icon-btn" title="刷新"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V5H11"/></svg></span>
+    </div>
+    <div class="sect"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>暂存的变更（1）</div>
+    <div class="row change"><span class="badge m" style="background:var(--green-bg);color:var(--green)">M</span><span class="name change" style="font-family:var(--mono);font-size:11.5px">apply.ts</span><span class="dir">client</span>
+      <span class="acts"><span class="mini" title="取消暂存"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M7 4 3 8l4 4"/></svg></span></span></div>
+    <div class="sect"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>更改（2）</div>
+    <div class="row change"><span class="badge m">M</span><span class="name" style="font-family:var(--mono);font-size:11.5px">apply.ts</span><span class="dir">client</span>
+      <span class="acts"><span class="mini" title="暂存"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg></span><span class="mini" title="丢弃"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10"/></svg></span></span></div>
+    <div class="row change"><span class="badge m">M</span><span class="name" style="font-family:var(--mono);font-size:11.5px">AGENTS.md</span>
+      <span class="acts"><span class="mini" title="暂存"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg></span><span class="mini" title="丢弃"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10"/></svg></span></span></div>
+    <div class="sect">未跟踪（1）</div>
+    <div class="row change"><span class="badge u">U</span><span class="name" style="font-family:var(--mono);font-size:11.5px">RELEASE_NOTES.md</span>
+      <span class="acts"><span class="mini" title="暂存"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg></span></span></div>
+    <div class="commit">
+      <textarea placeholder="提交信息（当前分支：main）"></textarea>
+      <div class="meta"><span class="hint">共 3 个文件将提交</span><button class="btn" disabled>提交</button></div>
+    </div>
+    <div class="sect">提交历史</div>
+    <div class="log-row"><span class="hash">a2cf89e</span><span class="msg">skill: vendor design-taste-frontend</span><span class="ago">1小时前</span></div>
+    <div class="log-row"><span class="hash">515a8af</span><span class="msg">refactor(packaging): ship dsh runtime as plain files</span><span class="ago">3小时前</span></div>
+    <div class="log-row"><span class="hash">66183d4</span><span class="msg">fix(assemble): close the workspace dependency closure</span><span class="ago">5小时前</span></div>
+  </div>
+</div>
+<div class="board-label">画板 2 · Git 页：悬停行才出现操作（不常驻）；提交按钮空信息禁用；历史 hash 用 mono 弱化</div>
+</div>
+
+<div class="board">
+<div class="board-label">画板 3 · diff（面板内 unified，行号 + 词级高亮留给实现）</div>
+<div class="panel" style="width:420px">
+  <div class="tabs">
+    <div class="tab">文件</div><div class="tab">Git</div><div class="tab">工具</div>
+  </div>
+  <div class="diff-head">
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--fg-3)"><path d="M10 3 5 8l5 5"/></svg>
+    <span class="path">client/apply.ts</span>
+    <span class="stat"><b>+12</b> <i>−3</i></span>
+  </div>
+  <div class="body" style="padding:6px 0">
+    <div class="dline hunk"><span class="no">··</span><span class="code">@@ -14,7 +14,9 @@ function apply(ctx) {</span></div>
+    <div class="dline ctx"><span class="no">14</span><span class="sign"> </span><span class="code">  const root = resolveWorkspace();</span></div>
+    <div class="dline del"><span class="no">15</span><span class="sign">−</span><span class="code">  const store = <span class="fn">createStore</span>();</span></div>
+    <div class="dline add"><span class="no">15</span><span class="sign">+</span><span class="code">  <span class="kw">const</span> store = <span class="fn">createGitStore</span>({ cwd: root });</span></div>
+    <div class="dline add"><span class="no">16</span><span class="sign">+</span><span class="code">  <span class="cm">// status 轮询由宿主推送，面板只读快照</span></span></div>
+    <div class="dline add"><span class="no">17</span><span class="sign">+</span><span class="code">  <span class="kw">const</span> client = <span class="fn">createGitClient</span>(store);</span></div>
+    <div class="dline ctx"><span class="no">16</span><span class="sign"> </span><span class="code">  return { store, client };</span></div>
+    <div class="dline ctx"><span class="no">17</span><span class="sign"> </span><span class="code">}</span></div>
+  </div>
+  <div class="commit" style="border-top:1px solid var(--bd1)">
+    <div class="meta" style="gap:8px">
+      <button class="btn" style="flex:1;background:var(--bg);color:var(--fg);border:1px solid var(--bd2)">暂存此文件</button>
+      <button class="btn" style="flex:1">提交</button>
+    </div>
+  </div>
+</div>
+<div class="board-label">画板 3 · 点击变更文件 → 面板内 unified diff（420px 加宽态），行内「暂存此文件」直达操作</div>
+</div>
+
+<div class="board">
+<div class="board-label">画板 4 · 状态周期（skill 4.5 强制）</div>
+<div style="display:flex;gap:16px">
+<div class="panel" style="height:260px">
+  <div class="tabs"><div class="tab active">文件</div><div class="tab">Git</div><div class="tab">工具</div></div>
+  <div class="body">
+    <div class="skel"><i style="width:12px"></i><i style="width:40%"></i><i style="width:14px;margin-left:auto"></i></div>
+    <div class="skel"><i style="width:12px;margin-left:16px"></i><i style="width:55%"></i></div>
+    <div class="skel"><i style="width:12px"></i><i style="width:35%"></i></div>
+    <div class="skel"><i style="width:12px;margin-left:16px"></i><i style="width:48%"></i><i style="width:14px;margin-left:auto"></i></div>
+    <div class="skel"><i style="width:12px"></i><i style="width:30%"></i></div>
+  </div>
+  <div class="board-label" style="padding:8px 10px">加载中（骨架形随布局）</div>
+</div>
+<div class="panel" style="height:200px">
+  <div class="tabs"><div class="tab active">Git</div><div class="tab">文件</div><div class="tab">工具</div></div>
+  <div class="body"><div class="notice"><b>当前工作区不是 git 仓库</b><br>在终端执行 git init 后此面板可用。</div></div>
+</div>
+<div class="panel" style="height:200px">
+  <div class="tabs"><div class="tab active">Git</div><div class="tab">文件</div><div class="tab">工具</div></div>
+  <div class="body"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 6 9 17l-5-5"/></svg>工作区干净，没有未提交的更改</div></div>
+  <div class="board-label" style="padding:8px 10px">空态（构图完整）</div>
+</div>
+</div>
+</div>
+
+</body>
+</html>
