@@ -1,7 +1,7 @@
 {
   "name": "lx-dsh",
   "productName": "LX-DSH",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "type": "commonjs",
   "description": "LX-DSH — native desktop client for DeepSeek Harness (dsh web)",
