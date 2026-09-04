@@ -67,9 +67,9 @@ The package is one composition: both target slots are declared by other plugins,
 
 Each registration declares a **directory-flow child hole** (`single` kind: `conversation.hero.workspace.directoryFlow` / `sidebar.workspaces.directoryFlow`) that the composed picker package's client half fills with its picking interaction — the `-native` backend's renderless OS-chooser driver, an in-app browsing dialog under a `-browse` composition. The flat **Add workspace...** action renders only while the surface's hole is occupied; an empty hole means the composition has no picking affordance. This package owns the trigger and the adoption: the occupant reports one picked path per open through the hole's owner conversation (`open`/`busy`/`onPicked`/`onCancel`/`onError`), and the owner adopts it through the object layer, selecting the committed Workspace only after its list projection has refreshed.
 
-### The leading tree row and the per-group row
+### The leading tree row and the per-group rows
 
-The browsing registration also declares two display holes: `sidebar.workspaces.leading` (a row above every Workspace group, wide column only — the rail hides the tree) and `sidebar.workspaces.groupRow` (a row rendered as the **first child of every expanded group**, carrying `{ workspaceId, title }` so one occupant serves all groups; the ungrouped bucket passes `workspaceId: undefined`). Both are occupant-owned styling and behavior (an LX-DSH composition uses the group row for the user-todos entry); an empty hole renders nothing, and nothing in this package depends on either.
+The browsing registration also declares three display holes: `sidebar.workspaces.leading` (a row above every Workspace group, wide column only — the rail hides the tree), `sidebar.workspaces.groupRow` (a row rendered as the **first child of every expanded group**, carrying `{ workspaceId, title }` so one occupant serves all groups; the ungrouped bucket passes `workspaceId: undefined`), and `sidebar.workspaces.groupBadge` (a badge rendered after every group header's title, same owner share, visible on collapsed groups too). All are occupant-owned styling and behavior (an LX-DSH composition uses the group row and badge for the user-todos entry); an empty hole renders nothing, and nothing in this package depends on any of them.
 
 ### View state
 

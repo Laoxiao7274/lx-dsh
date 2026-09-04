@@ -63,6 +63,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Row rendered as the first child of every workspace group (expanded groups only). */
     'sidebar.workspaces.groupRow': { kind: 'single'; scope: 'root'; owner: WorkspaceGroupRowOwnerProps }
+    /** Badge rendered after a workspace group header's title (collapsed or expanded). */
+    'sidebar.workspaces.groupBadge': { kind: 'single'; scope: 'root'; owner: WorkspaceGroupRowOwnerProps }
     /** Leading row the browsing region renders at the top of its tree, above every workspace group (wide column only). */
     'sidebar.workspaces.leading': { kind: 'single'; scope: 'root' }
     /** Directory-flow hole under the conversation empty-state picker (declared by the WorkspacePicker entry). */
@@ -159,7 +161,7 @@ export type WorkspaceBrowserInjected = {
 /** Full browser props: shell owner share + viewing store + injected actions + the locale seat. */
 export type WorkspaceBrowserProps =
   PropsRuntime<'sidebar.workspaces'>
-  & PropsRenderSlots<'sidebar.workspaces.leading' | 'sidebar.workspaces.groupRow' | 'sidebar.workspaces.directoryFlow'>
+  & PropsRenderSlots<'sidebar.workspaces.leading' | 'sidebar.workspaces.groupRow' | 'sidebar.workspaces.groupBadge' | 'sidebar.workspaces.directoryFlow'>
   & PropsStore<ReturnType<typeof createWorkspaceViewStore>>
   & Omit<WorkspaceBrowserInjected, 'hooks'>
   & PropsHooks<WorkspaceBrowserInjected['hooks']>

@@ -266,6 +266,8 @@ type SessionTreeProps = Pick<
   leading?: ReactNode
   /** Row rendered as the first child of every expanded group (owner share in). */
   groupRow?: (owner: { workspaceId: string | undefined; title: string }) => ReactNode
+  /** Badge rendered after every group header's title (owner share in). */
+  groupBadge?: (owner: { workspaceId: string | undefined; title: string }) => ReactNode
 }
 
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
@@ -277,6 +279,7 @@ function SessionTree({
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
   leading,
   groupRow,
+  groupBadge,
 }: SessionTreeProps) {
   const list = useSessions(s => s)
   const pendingInteractions = useSessionPendingInteraction(s => s)
@@ -521,6 +524,7 @@ function SessionTree({
                   }
                 }}
                 drag={workspaceDragProps}
+                badge={groupBadge !== undefined ? groupBadge({ workspaceId: group.workspaceId, title: group.label }) : undefined}
                 actions={group.workspaceId === undefined
                   ? undefined
                   : {
@@ -1265,6 +1269,7 @@ export function WorkspaceBrowser({
                 t={t}
                 leading={renderSlot('sidebar.workspaces.leading', {})}
                 groupRow={owner => renderSlot('sidebar.workspaces.groupRow', owner)}
+                groupBadge={owner => renderSlot('sidebar.workspaces.groupBadge', owner)}
                 onRenameRequest={(workspaceId, currentTitle) => {
                   setRenameTarget({ workspaceId, currentTitle })
                   setRenameDraft(currentTitle)

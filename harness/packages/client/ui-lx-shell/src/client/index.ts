@@ -36,6 +36,7 @@ import { LxBrandMark, LxBrandName, LxHeroBrandMark } from './LxBrand.tsx'
 import { LxQuickButton } from './LxQuickButton.tsx'
 import { LxQuickDrawer } from './LxQuickDrawer.tsx'
 import { LxTodosEntry } from './LxTodosEntry.tsx'
+import { LxTodosGroupBadge } from './LxTodosGroupBadge.tsx'
 import { LxTodosGroupRow } from './LxTodosGroupRow.tsx'
 import { LxTodosPanel } from './LxTodosPanel.tsx'
 import { LxUpdaterRow, type UpdaterRowInjected } from './LxUpdaterRow.tsx'
@@ -53,6 +54,7 @@ export type { LxQuickButtonProps } from './LxQuickButton.tsx'
 export type { LxQuickDrawerProps, LxQuickDrawerInjected } from './LxQuickDrawer.tsx'
 export type { QuickDrawerState, QuickDrawerActions, QuickTurn } from './quick-store.ts'
 export type { LxTodosEntryProps } from './LxTodosEntry.tsx'
+export type { LxTodosGroupBadgeProps } from './LxTodosGroupBadge.tsx'
 export type { LxTodosGroupRowProps } from './LxTodosGroupRow.tsx'
 export type { LxTodosPanelProps, LxTodosPanelInjected } from './LxTodosPanel.tsx'
 export type { TodoPanelState, TodoPanelActions } from './todo-store.ts'
@@ -436,6 +438,13 @@ export function apply(ctx: ClientContext): void {
     locale: SETTINGS_NS,
     inject: injectedTodosEntry,
   }, LxTodosGroupRow))
+  ctx.slots.inject('sidebar.workspaces.groupBadge', () => ctx.slots.register({
+    name: 'sidebar.workspaces.groupBadge',
+    id: 'lx-user-todos-badge',
+    store: todoStore,
+    locale: SETTINGS_NS,
+    inject: injectedTodosEntry,
+  }, LxTodosGroupBadge))
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'lx-user-todos',

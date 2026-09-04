@@ -1,0 +1,29 @@
+/* User-todos group badge: the count pill after a workspace group header's
+ * title. Present only while the group has open todos. */
+
+.badge {
+  flex: none;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 9px;
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.badge:hover {
+  filter: brightness(1.1);
+}
+
+.badge:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}

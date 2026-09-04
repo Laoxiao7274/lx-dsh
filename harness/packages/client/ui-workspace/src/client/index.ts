@@ -145,6 +145,7 @@ export function apply(ctx: Context): void {
       children: {
         'sidebar.workspaces.leading': { kind: 'single', scope: 'root' },
         'sidebar.workspaces.groupRow': { kind: 'single', scope: 'root' },
+        'sidebar.workspaces.groupBadge': { kind: 'single', scope: 'root' },
         'sidebar.workspaces.directoryFlow': { kind: 'single', scope: 'root' },
       },
       store: createWorkspaceViewStore(),
