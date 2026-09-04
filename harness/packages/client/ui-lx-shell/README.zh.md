@@ -19,7 +19,7 @@ LX-DSH 桌面壳的客户端插件：品牌行、更新按钮与弹窗、窗口 
 - **更新体系**：`LxUpdateButton` + 弹窗显示当前/新版本行、changelog（缺失显示「未提供更新日志」）、实时下载进度与立即安装/稍后按钮；`LxUpdateStatus` store 镜像宿主更新状态（dev 模式 `LX_DSH_FAKE_UPDATE=1` 伪造可用更新做界面验证）。
 - **快问快答抽屉**（`shell.overlay` 槽位 + `sidebar.footer.action` ⚡ 入口）：`LxQuickButton`（`aria-pressed` 镜像抽屉状态）与 `LxQuickDrawer`——420px 右锚定滑入面板，承载针对 `quick-answers` 预设的紧凑问答交流（会话经 `sessions.create` 建立，从不设为 current）。回答走共享的 `MarkdownText` 管线；思考过程走同一 Think 折叠行。抽屉根声明 `-webkit-app-region: no-drag`（覆盖在 Session Header 拖拽条上）。`quick-store.ts`（`createQuickDrawerStore`）持有 open 标志、绑定会话 id、turns 与错误。
 - **作用域纪律**：一个 store handle 只挂一个 seat——chromeStore（updater 镜像）由 `sidebar.brand.name` 持有；快问 store 由 `shell.overlay` 持有；`conversation.session.header.utilities` 是会话作用域（另一 store 实例）。
-- **用户待办**（`sidebar.footer.action` 入口 + `shell.overlay` 面板，均以 `todos` 桥成员可选）：`LxTodosEntry`（未完成计数徽章、rail 图标圆，打开时把自身矩形传给面板）与 `LxTodosPanel`（锚定弹层：回车添加、勾选完成、删除、点外/Escape 关闭）。列表持久化在壳的 `userData/todos.json`（桥的 `get`/`add`/`remove`/`toggle` 返回写后列表）；`todo-store.ts`（`createTodoPanelStore`）做渲染镜像。无 `todos` 成员的旧壳不注册任何东西。
+- **用户待办**（`sidebar.workspaces.leading` 树行——与工作区文件夹并列 + `sidebar.footer.action` rail 兜底 + `shell.overlay` 面板，均以 `todos` 桥成员可选）：`LxTodosTreeRow`（未完成计数徽章，打开时传自身矩形）、`LxTodosEntry`（rail 图标圆）与 `LxTodosPanel`（锚定弹层：回车添加、勾选完成、删除、点外/Escape 关闭）。列表持久化在壳的 `userData/todos.json`（桥的 `get`/`add`/`remove`/`toggle` 返回写后列表）；`todo-store.ts`（`createTodoPanelStore`）做渲染镜像，并携带打开锚点（inject 结果会被 memoize，活锚点必须走 store）。无 `todos` 成员的旧壳不注册任何东西。
 
 桥在 Cordis 拓扑之外，因此没有服务缝：订阅是 apply 体持有的普通函数，随插件 fiber 一起销毁。
 

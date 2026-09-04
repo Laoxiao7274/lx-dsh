@@ -23,21 +23,24 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: the sidebar slot types (brand mark/name + footer actions).
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+// Type-only: the workspace slot types (`sidebar.workspaces.leading`).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 // Type-only: the layout slot types (`shell.overlay`).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { LxShellKey } from './locales.ts'
 import type { LxUpdateStatus } from './store.ts'
 import type { LxHeaderChromeInjected, LxEditorBridge, LxEditorTarget, LxPluginsBridge, LxWindowBridge } from './LxHeaderChrome.tsx'
-import type { LxTodosPanelInjected, TodoAnchorRect } from './LxTodosPanel.tsx'
+import type { LxTodosPanelInjected } from './LxTodosPanel.tsx'
 import { LxHeaderChrome } from './LxHeaderChrome.tsx'
 import { LxBrandMark, LxBrandName, LxHeroBrandMark } from './LxBrand.tsx'
 import { LxQuickButton } from './LxQuickButton.tsx'
 import { LxQuickDrawer } from './LxQuickDrawer.tsx'
 import { LxTodosEntry } from './LxTodosEntry.tsx'
 import { LxTodosPanel } from './LxTodosPanel.tsx'
+import { LxTodosTreeRow } from './LxTodosTreeRow.tsx'
 import { LxUpdaterRow, type UpdaterRowInjected } from './LxUpdaterRow.tsx'
 import { createQuickDrawerStore } from './quick-store.ts'
-import { createTodoPanelStore } from './todo-store.ts'
+import { createTodoPanelStore, type TodoAnchor, type TodoItem } from './todo-store.ts'
 import { createUpdaterRowStore } from './store.ts'
 import { deriveQuickTurns } from './quick-turns.ts'
 import { en, zh } from './locales.ts'
@@ -369,18 +372,17 @@ export function apply(ctx: ClientContext): void {
     inject: (): { max: () => void } => ({ max: () => { shell.win?.max() } }),
   }, LxHeroBrandMark))
 
-  // User todos: the sidebar-foot entry opens a small anchored panel over the
-  // bridge's persisted list. The bridge member is optional; an older shell
-  // degrades to no todos surface (the registrations below are skipped).
+  // User todos: a leading tree row beside the workspace folders plus a
+  // sidebar-foot entry (the rail fallback — the tree hides on the rail), both
+  // opening one anchored panel over the bridge's persisted list. The bridge
+  // member is optional; an older shell degrades to no todos surface.
   if (shell.todos === undefined) return
   const todos = shell.todos
   const todoStore = createTodoPanelStore()
   let todoBound: BoundActions<typeof todoStore> | undefined
-  /** The entry button's rectangle at open time; the panel anchors to it. */
-  let todoAnchor: TodoAnchorRect = { left: 0, top: 0 }
 
   /** Replace the mirrored list from a bridge reply. */
-  const todoSync = (reply: { items: LxTodoItem[] }): void => {
+  const todoSync = (reply: { items: TodoItem[] }): void => {
     todoBound?.setLoading(false)
     todoBound?.setItems(reply.items)
   }
@@ -392,36 +394,44 @@ export function apply(ctx: ClientContext): void {
   }
 
   /** One bridge mutation whose reply lands in the mirror. */
-  const todoMutate = (run: () => Promise<{ items: LxTodoItem[] }>): void => {
+  const todoMutate = (run: () => Promise<{ items: TodoItem[] }>): void => {
     void run().then(todoSync).catch(() => { /* the mirror keeps the last good list */ })
   }
 
+  /** Bind the store actions and hand both entries the same open write. */
+  const injectedTodosEntry = (actions: BoundActions<typeof todoStore>): { open: (anchor: TodoAnchor) => void } => {
+    todoBound = actions
+    return {
+      open: (anchor) => {
+        actions.open(anchor)
+        ensureTodos()
+      },
+    }
+  }
+
+  ctx.slots.inject('sidebar.workspaces.leading', () => ctx.slots.register({
+    name: 'sidebar.workspaces.leading',
+    id: 'lx-user-todos-row',
+    store: todoStore,
+    locale: SETTINGS_NS,
+    inject: injectedTodosEntry,
+  }, LxTodosTreeRow))
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'lx-user-todos',
     store: todoStore,
     locale: SETTINGS_NS,
-    inject: (actions: BoundActions<typeof todoStore>): { open: (anchor: TodoAnchorRect) => void } => {
-      todoBound = actions
-      return {
-        open: (anchor) => {
-          todoAnchor = anchor
-          actions.open()
-          ensureTodos()
-        },
-      }
-    },
+    inject: injectedTodosEntry,
   }, LxTodosEntry))
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'lx-user-todos-panel',
     store: todoStore,
     locale: SETTINGS_NS,
-    inject: (): LxTodosPanelInjected & { anchor: TodoAnchorRect, close: () => void } => ({
+    inject: (): LxTodosPanelInjected & { close: () => void } => ({
       add: (text) => { todoMutate(() => todos.add(text)) },
       remove: (id) => { todoMutate(() => todos.remove(id)) },
       toggle: (id) => { todoMutate(() => todos.toggle(id)) },
-      anchor: todoAnchor,
       close: () => { todoBound?.close() },
     }),
   }, LxTodosPanel))

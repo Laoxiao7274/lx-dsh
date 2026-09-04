@@ -1,0 +1,56 @@
+/* User-todos leading tree row: mirrors the workspace project-row anatomy
+ * (icon + title + trailing count) so it reads as a sibling of the workspace
+ * folders. The count pill is quiet until items exist. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  margin: 0 0 4px;
+  padding: 0 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--dsw-alias-label-primary);
+}
+
+.row:hover,
+.row[aria-selected] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.iconSlot {
+  flex: none;
+  display: inline-flex;
+  width: 22px;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.count {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}

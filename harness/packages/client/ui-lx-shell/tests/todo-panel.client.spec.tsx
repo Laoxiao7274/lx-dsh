@@ -3,8 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LxTodosPanel, type LxTodosPanelProps } from '../src/client/LxTodosPanel.tsx'
-import { createTodoPanelStore, type TodoPanelState } from '../src/client/todo-store.ts'
-import type { LxTodoItem } from '../src/client/index.ts'
+import { createTodoPanelStore, type TodoItem, type TodoPanelState } from '../src/client/todo-store.ts'
 import { en, type LxShellKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -25,7 +24,6 @@ function mountPanel(
       close: vi.fn(),
     },
     ...injected,
-    anchor: { left: 10, top: 100, bottom: 142 },
     useStore: (selector: (s: TodoPanelState) => unknown) => selector(store.getSnapshot()),
     actions: store.actions,
     t: (key: string) => COPY[key as LxShellKey] ?? key,
@@ -34,7 +32,7 @@ function mountPanel(
   return props as unknown as { add: (t: string) => void; remove: (id: string) => void; toggle: (id: string) => void; close: () => void }
 }
 
-const ITEMS: readonly LxTodoItem[] = [
+const ITEMS: readonly TodoItem[] = [
   { id: 'a', text: '买牛奶', done: false, createdAt: 1 },
   { id: 'b', text: '交报告', done: true, createdAt: 2, doneAt: 3 },
 ]
@@ -44,7 +42,6 @@ describe('LxTodosPanel', () => {
     const store = createTodoPanelStore().create()
     const props = {
       add: vi.fn(), remove: vi.fn(), toggle: vi.fn(), close: vi.fn(),
-      anchor: { left: 0, top: 0, bottom: 0 },
       useStore: (selector: (s: TodoPanelState) => unknown) => selector(store.getSnapshot()),
       actions: store.actions,
       t: (key: string) => COPY[key as LxShellKey] ?? key,
@@ -53,16 +50,25 @@ describe('LxTodosPanel', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('anchors to the store-carried rectangle', () => {
+    const store = createTodoPanelStore().create()
+    store.actions.open({ left: 120, top: 40, bottom: 74 })
+    mountPanel(store)
+    const dialog = screen.getByRole('dialog') as HTMLElement
+    expect(dialog.style.left).toBe('120px')
+    expect(dialog.style.top).toBe('40px')
+  })
+
   it('shows the empty hint when the list is empty', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open()
+    store.actions.open({ left: 0, top: 0, bottom: 0 })
     mountPanel(store)
     expect(screen.getByText(en['todo.empty'])).toBeTruthy()
   })
 
   it('sends a typed line on Enter and clears the draft', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open()
+    store.actions.open({ left: 0, top: 0, bottom: 0 })
     const { add } = mountPanel(store, { add: vi.fn() })
     const input = screen.getByRole('textbox') as HTMLInputElement
     fireEvent.change(input, { target: { value: '写周报' } })
@@ -73,7 +79,7 @@ describe('LxTodosPanel', () => {
 
   it('blank Enter does not send', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open()
+    store.actions.open({ left: 0, top: 0, bottom: 0 })
     const { add } = mountPanel(store, { add: vi.fn() })
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: '   ' } })
@@ -83,7 +89,7 @@ describe('LxTodosPanel', () => {
 
   it('renders open items before done ones and dispatches row actions', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open()
+    store.actions.open({ left: 0, top: 0, bottom: 0 })
     store.actions.setItems(ITEMS)
     const { toggle, remove } = mountPanel(store, { toggle: vi.fn(), remove: vi.fn() })
     expect(screen.getByText('买牛奶')).toBeTruthy()
@@ -99,7 +105,7 @@ describe('LxTodosPanel', () => {
 
   it('Escape and the backdrop close the panel', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open()
+    store.actions.open({ left: 0, top: 0, bottom: 0 })
     const { close } = mountPanel(store, { close: vi.fn() })
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
     expect(close).toHaveBeenCalledExactlyOnceWith()

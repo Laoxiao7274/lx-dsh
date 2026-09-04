@@ -1,22 +1,16 @@
 /**
- * User-todos panel: a small popover anchored beside the sidebar entry,
+ * User-todos panel: a small popover anchored beside the clicked entry,
  * hosting add / toggle / remove / view over the shell's persisted to-do
  * list. It rides the shell overlay layer; the anchor rectangle is captured
- * by the entry at open time (reopening re-centers it — the panel does not
- * follow a live resize). Outside clicks close through the layer backdrop.
+ * by the clicked entry at open time and travels through the store (the
+ * renderer memoizes inject results, so a live-updating value cannot ride
+ * the inject face). Outside clicks close through the layer backdrop.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './LxTodosPanel.module.css'
-import type { LxTodoItem } from './index.ts'
+import type { TodoItem } from './todo-store.ts'
 import type { createTodoPanelStore } from './todo-store.ts'
-
-/** Anchor rectangle captured from the entry button (viewport coordinates). */
-export interface TodoAnchorRect {
-  readonly left: number
-  readonly top: number
-  readonly bottom: number
-}
 
 /** Injected share (apply-closure callbacks; see {@link ../index.ts}). */
 export interface LxTodosPanelInjected {
@@ -32,20 +26,18 @@ export interface LxTodosPanelInjected {
 export type LxTodosPanelProps = PropsRuntime<'shell.overlay'>
   & PropsStore<ReturnType<typeof createTodoPanelStore>>
   & PropsLocale<'settings.lxShell'> & LxTodosPanelInjected & {
-    /** The entry button's rectangle at open time. */
-    anchor: TodoAnchorRect
     /** Close the panel (the entry's aria-pressed follows the store). */
     close: () => void
   }
 
 /**
  * Render the user-todos panel.
- * @param props - slot runtime share, the panel store, the locale seat, the
- *   mutation writes, the anchor rectangle, and the close write.
+ * @param props - slot runtime share, the panel store (open state, anchor,
+ *   mirrored list), the locale seat, the mutation writes, and the close write.
  * @returns the panel, or nothing while closed.
  */
 export function LxTodosPanel({
-  useStore, actions, t, add, remove, toggle, anchor, close,
+  useStore, t, add, remove, toggle, close,
 }: LxTodosPanelProps): ReactNode {
   const state = useStore(s => s)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -75,7 +67,7 @@ export function LxTodosPanel({
       <div className={css.backdrop} onClick={() => { close() }} aria-hidden />
       <div
         className={css.panel} role="dialog" aria-label={t('todo.title')}
-        style={{ left: anchor.left, top: anchor.top }}
+        style={{ left: state.anchor.left, top: state.anchor.top }}
         onClick={(e) => { e.stopPropagation() }}
       >
         <div className={css.header}>
@@ -125,7 +117,7 @@ export function LxTodosPanel({
 
 /** One row: the done checkbox, the text, and the remove button. */
 function TodoRow({ item, toggle, remove, t }: {
-  item: LxTodoItem
+  item: TodoItem
   toggle: (id: string) => void
   remove: (id: string) => void
   t: LxTodosPanelProps['t']

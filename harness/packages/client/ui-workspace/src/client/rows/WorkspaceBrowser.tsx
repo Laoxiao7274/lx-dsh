@@ -9,7 +9,7 @@
  * menu in between; the flow and its error dialog live in WorkspacePicker
  * (same package — direct composition, no slot between them).
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconCloseFill14, IconPersonalizationOutline16,
@@ -262,6 +262,8 @@ type SessionTreeProps = Pick<
   onSessionArchive: (sessionId: SessionNode['id']) => void
   /** Session order behavior: fixed after edits, or additionally promoted by user activity. */
   orderBy: SessionOrderBy
+  /** Row rendered at the top of the tree, above every workspace group. */
+  leading?: ReactNode
 }
 
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
@@ -271,6 +273,7 @@ function SessionTree({
   insertWorkspaceBefore, insertSessionBefore, orderBy,
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
+  leading,
 }: SessionTreeProps) {
   const list = useSessions(s => s)
   const pendingInteractions = useSessionPendingInteraction(s => s)
@@ -433,6 +436,9 @@ function SessionTree({
         role="tree"
         aria-label={t('section.sessions')}
       >
+        {/* Leading row: the owner-supplied entry above every group (rendered
+         * by the browser root; unoccupied passes nothing). */}
+        {leading}
         {groups.length === 0 && (
           <div className={css.empty}>{t('empty.none')}</div>
         )}
@@ -1252,6 +1258,7 @@ export function WorkspaceBrowser({
                 orderBy={orderBy}
                 home={home}
                 t={t}
+                leading={renderSlot('sidebar.workspaces.leading', {})}
                 onRenameRequest={(workspaceId, currentTitle) => {
                   setRenameTarget({ workspaceId, currentTitle })
                   setRenameDraft(currentTitle)

@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SidebarFooterActionOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import css from './LxTodosEntry.module.css'
-import type { TodoAnchorRect } from './LxTodosPanel.tsx'
+import type { TodoAnchor } from './todo-store.ts'
 import type { createTodoPanelStore } from './todo-store.ts'
 
 /** Full props of the user-todos footer action occupant. */
@@ -16,7 +16,7 @@ export type LxTodosEntryProps = PropsRuntime<'sidebar.footer.action'>
   & SidebarFooterActionOwnerProps & PropsStore<ReturnType<typeof createTodoPanelStore>>
   & PropsLocale<'settings.lxShell'> & {
     /** Open the panel anchored to this entry's current rectangle. */
-    open: (anchor: TodoAnchorRect) => void
+    open: (anchor: TodoAnchor) => void
   }
 
 /**
