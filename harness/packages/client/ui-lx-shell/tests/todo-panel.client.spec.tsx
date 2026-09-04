@@ -98,9 +98,11 @@ describe('LxTodosPanel', () => {
     // Open row precedes the done row in DOM order.
     const rows = screen.getAllByRole('button', { name: en['todo.toggle'] })
     expect(rows).toHaveLength(2)
-    fireEvent.click(rows[0])
+    const toggleRow = rows[0] as HTMLElement
+    fireEvent.click(toggleRow)
     expect(toggle).toHaveBeenCalledExactlyOnceWith('a')
-    fireEvent.click(screen.getAllByRole('button', { name: en['todo.remove'] })[1])
+    const removeRow = screen.getAllByRole('button', { name: en['todo.remove'] })[1] as HTMLElement
+    fireEvent.click(removeRow)
     expect(remove).toHaveBeenCalledExactlyOnceWith('b')
   })
 

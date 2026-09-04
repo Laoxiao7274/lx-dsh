@@ -23,6 +23,11 @@ import {
   DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
   DEFAULT_COLD_BLANK_PROBE_MAX_EVENTS,
 } from './list.ts'
+import {
+  DEFAULT_BYTES_READ_CAP_BYTES,
+  DEFAULT_TEXT_READ_CAP_BYTES,
+  readWorkspaceFile,
+} from './workspace-read.ts'
 import { buildModelCatalog } from './catalog.ts'
 import { installModelSelectionProjection } from './model-selection-projection.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
@@ -47,6 +52,8 @@ import type {
   SessionPageRequest,
   SessionPromptRequest,
   SessionPromptValue,
+  SessionReadWorkspaceFileRequest,
+  SessionReadWorkspaceFileValue,
   SessionRenameRequest,
   SessionRenameValue,
   SessionRewindRequest,
@@ -85,6 +92,10 @@ export interface Config {
   readonly coldBackfillLimit?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /** Whole-file byte ceiling for one workspace text preview read. */
+  readonly textReadCapBytes?: number
+  /** Whole-file byte ceiling for one workspace binary preview read. */
+  readonly bytesReadCapBytes?: number
 }
 
 /** Host integrations replaceable by direct unit tests. */
@@ -114,6 +125,8 @@ export class SessionController extends TypertRemoteService {
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
     coldBackfillLimit: z.natural().default(DEFAULT_COLD_BACKFILL_LIMIT),
     nativeOpen: z.boolean(),
+    textReadCapBytes: z.natural().default(DEFAULT_TEXT_READ_CAP_BYTES),
+    bytesReadCapBytes: z.natural().default(DEFAULT_BYTES_READ_CAP_BYTES),
   })
 
   private readonly agents: ApiSessionAgentController
@@ -123,6 +136,8 @@ export class SessionController extends TypertRemoteService {
   private readonly listState: ApiSessionList
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
+  private readonly textReadCapBytes: number
+  private readonly bytesReadCapBytes: number
   private readonly promotions = new Set<Promise<void>>()
 
   /**
@@ -150,6 +165,8 @@ export class SessionController extends TypertRemoteService {
     this.openPath = internals.openPath ?? openNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
+    this.textReadCapBytes = config.textReadCapBytes ?? DEFAULT_TEXT_READ_CAP_BYTES
+    this.bytesReadCapBytes = config.bytesReadCapBytes ?? DEFAULT_BYTES_READ_CAP_BYTES
     ctx.plugin(SessionFileReferences)
     ctx.plugin(SessionSkillCatalog)
 
@@ -314,6 +331,24 @@ export class SessionController extends TypertRemoteService {
         {},
       )
     }
+  }
+
+  /**
+   * Read one workspace file in the delivery form the in-app preview renders.
+   * @param request - Session identity, resolved path, and delivery form.
+   * @param signal - caller lifetime; abort terminates the read.
+   * @returns the decoded text or base64 bytes for the whole file.
+   * @throws RemoteError when the path is missing, unreadable, or above its cap.
+   */
+  @Remote('readWorkspaceFile')
+  readWorkspaceFile(
+    request: SessionReadWorkspaceFileRequest,
+    signal: AbortSignal,
+  ): Promise<SessionReadWorkspaceFileValue> {
+    return readWorkspaceFile(request.path, request.as, {
+      text: this.textReadCapBytes,
+      bytes: this.bytesReadCapBytes,
+    }, signal)
   }
 
   /**

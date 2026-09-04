@@ -46,6 +46,8 @@ import type {
   SessionPageRequest,
   SessionPromptRequest,
   SessionPromptValue,
+  SessionReadWorkspaceFileRequest,
+  SessionReadWorkspaceFileValue,
   SessionRenameRequest,
   SessionRenameValue,
   SessionSearchRequest,
@@ -74,6 +76,10 @@ export interface TestSessionRemote {
     request: SessionOpenWorkspacePathRequest,
     signal?: AbortSignal,
   ): Promise<RemoteResult<SessionOpenWorkspacePathValue>>
+  readWorkspaceFile(
+    request: SessionReadWorkspaceFileRequest,
+    signal?: AbortSignal,
+  ): Promise<RemoteResult<SessionReadWorkspaceFileValue>>
   page(request: SessionPageRequest, signal?: AbortSignal): Promise<RemoteResult<SessionPage>>
   follow(request: SessionFollowRequest, signal?: AbortSignal): AsyncIterable<SessionFollowFrame>
   control(signal?: AbortSignal): AsyncIterable<SessionControlFrame>
@@ -87,6 +93,8 @@ export interface TestSessionRemoteDefaults {
   readonly coldBlankProbeMaxBytes?: number
   readonly coldBackfillLimit?: number
   readonly nativeOpen?: boolean
+  readonly textReadCapBytes?: number
+  readonly bytesReadCapBytes?: number
   readonly saveDefaultModelSelection?: (selection: AgentModelSelection) => void | Promise<void>
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
   readonly canOpenPath?: () => boolean
@@ -254,6 +262,8 @@ function installControllers(
           ? {}
           : { coldBackfillLimit: defaults.coldBackfillLimit },
         ...defaults.nativeOpen === undefined ? {} : { nativeOpen: defaults.nativeOpen },
+        ...defaults.textReadCapBytes === undefined ? {} : { textReadCapBytes: defaults.textReadCapBytes },
+        ...defaults.bytesReadCapBytes === undefined ? {} : { bytesReadCapBytes: defaults.bytesReadCapBytes },
       },
       {
         ...defaults.openPath === undefined ? {} : { openPath: defaults.openPath },
@@ -325,6 +335,10 @@ export function createSessionTestRemote(
     cancel: request => remoteResult(() => direct.cancel(request)),
     openWorkspacePath: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.openWorkspacePath(request, signal),
+      signal,
+    ),
+    readWorkspaceFile: (request, signal = new AbortController().signal) => remoteResult(
+      () => direct.readWorkspaceFile(request, signal),
       signal,
     ),
     page: (request, signal = new AbortController().signal) => remoteResult(

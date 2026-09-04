@@ -54,7 +54,7 @@ export interface DirectoryFlowOwnerProps {
 /** Owner share of the per-workspace group row: which group the row renders in. */
 export interface WorkspaceGroupRowOwnerProps {
   /** The owning workspace's id; undefined for the ungrouped bucket. */
-  workspaceId: WorkspaceId | undefined
+  workspaceId: string | undefined
   /** The group's display title. */
   title: string
 }

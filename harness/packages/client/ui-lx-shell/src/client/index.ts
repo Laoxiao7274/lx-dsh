@@ -409,7 +409,7 @@ export function apply(ctx: ClientContext): void {
   }
 
   /** One bridge mutation whose reply lands in the mirror. */
-  const todoMutate = (workspaceKey: string, run: () => Promise<{ items: TodoItem[] }>): void => {
+  const todoMutate = (run: () => Promise<{ items: TodoItem[] }>): void => {
     void run().then(todoSync)
       .catch(() => { /* the mirror keeps the last good list */ })
   }
@@ -433,14 +433,12 @@ export function apply(ctx: ClientContext): void {
 
   ctx.slots.inject('sidebar.workspaces.groupRow', () => ctx.slots.register({
     name: 'sidebar.workspaces.groupRow',
-    id: 'lx-user-todos-row',
     store: todoStore,
     locale: SETTINGS_NS,
     inject: injectedTodosEntry,
   }, LxTodosGroupRow))
   ctx.slots.inject('sidebar.workspaces.groupBadge', () => ctx.slots.register({
     name: 'sidebar.workspaces.groupBadge',
-    id: 'lx-user-todos-badge',
     store: todoStore,
     locale: SETTINGS_NS,
     inject: injectedTodosEntry,
@@ -458,9 +456,9 @@ export function apply(ctx: ClientContext): void {
     store: todoStore,
     locale: SETTINGS_NS,
     inject: (): LxTodosPanelInjected & { close: () => void } => ({
-      add: (text) => { todoMutate(todoKey, () => todos.add(todoKey, text)) },
-      remove: (id) => { todoMutate(todoKey, () => todos.remove(todoKey, id)) },
-      toggle: (id) => { todoMutate(todoKey, () => todos.toggle(todoKey, id)) },
+      add: (text) => { todoMutate(() => todos.add(todoKey, text)) },
+      remove: (id) => { todoMutate(() => todos.remove(todoKey, id)) },
+      toggle: (id) => { todoMutate(() => todos.toggle(todoKey, id)) },
       close: () => { todoBound?.close() },
     }),
   }, LxTodosPanel))

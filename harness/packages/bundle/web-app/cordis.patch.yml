@@ -247,6 +247,12 @@
     - id: ui-deliverables
       name: '@deepseek-ai/dsh-client-ui-deliverables'
 
+    # Classified produced-artifact row (media lane + file lane) shadowing the
+    # deliverables chips at chain priority -100, plus the tabbed preview
+    # panel in the shell overlay. Reads through session/readWorkspaceFile.
+    - id: ui-artifact-preview
+      name: '@deepseek-ai/dsh-client-ui-artifact-preview'
+
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'

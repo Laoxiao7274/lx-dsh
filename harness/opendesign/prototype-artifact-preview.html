@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LX-DSH 产物预览设计稿 · 文件 / 图片 / 视频 / 音频 / 网页（design-taste-frontend 流程产出）</title>
+<style>
+/* Design Read: 读作「开发者高频产品面板」（会话内产物预览），锚定 dsh 现有 --dsw 体系
+   （单色 + 状态色），刻度 VARIANCE 3 / MOTION 2 / DENSITY 4。全部数值取自
+   design-platform.css 亮色主题（design-systems/dsh/colors_and_type.css）。
+   本原型是产品 UI，不是营销页：沿用 skill 的版式纪律、状态完备性与 AI-tell 禁令，
+   视觉语言服从 dsh 本体（单色 + mono 元数据 + 发丝线）。
+   面板内的内联 SVG 是最终实现里 ui-primitives 图标集的占位，实现时从产品图标取。 */
+:root {
+  --bg: rgb(255,255,255);
+  --bg-2: rgb(249,250,251);
+  --skel: rgb(235,238,242);
+  --fg: rgb(15,17,21);
+  --fg-2: rgb(97,102,107);
+  --fg-3: rgb(129,133,140);
+  --dim: rgb(207,211,214);
+  --bd1: rgba(0,0,0,.04);
+  --bd2: rgba(0,0,0,.1);
+  --bd3: rgba(0,0,0,.12);
+  --hover: rgba(38,49,72,.06);
+  --green: rgb(34,197,94);
+  --green-bg: rgb(230,250,237);
+  --red: rgb(236,19,19);
+  --red-bg: rgb(254,226,226);
+  --amber: rgb(221,134,41);
+  --blue: rgb(59,130,246);
+  --blue-bg: rgb(219,234,254);
+  --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --r: 10px; /* 圆角刻度：卡 12 / 内元素 10 / 徽章 6，全页一套 */
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--sans); background:rgb(242,243,245); color:var(--fg);
+  display:flex; gap:36px; padding:32px; align-items:flex-start; flex-wrap:wrap; }
+h1 { font-size:15px; font-weight:600; width:100%; letter-spacing:-.01em; }
+p.note { width:100%; font-size:12px; color:var(--fg-2); margin:-20px 0 4px; max-width:1200px; line-height:1.7; }
+.board { display:flex; flex-direction:column; gap:12px; }
+.board-label { font-size:11px; color:var(--fg-3); font-family:var(--mono); }
+.board-label b { color:var(--fg-2); font-weight:600; }
+.rowline { display:flex; gap:20px; align-items:flex-start; }
+
+svg { display:block; }
+.ic { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.5;
+  stroke-linecap:round; stroke-linejoin:round; flex:none; }
+.ic.s { width:12px; height:12px; }
+
+/* ───────────────────────── 画板 A：对话内产物行 ───────────────────────── */
+.chat { width:560px; background:var(--bg); border:1px solid var(--bd2); border-radius:12px;
+  overflow:hidden; box-shadow:0 8px 24px rgba(15,17,21,.06); display:flex; flex-direction:column; }
+.chat-head { display:flex; align-items:center; gap:8px; padding:10px 14px;
+  border-bottom:1px solid var(--bd1); font-size:12.5px; color:var(--fg-2); }
+.chat-body { padding:16px 18px 18px; display:flex; flex-direction:column; gap:14px; }
+.msg-user { align-self:flex-end; background:var(--fg); color:var(--bg); font-size:12.5px;
+  padding:8px 12px; border-radius:12px 12px 4px 12px; max-width:78%; line-height:1.6; }
+.msg-a { font-size:12.5px; line-height:1.75; color:var(--fg); max-width:92%; }
+.msg-a .f { font-family:var(--mono); font-size:11.5px; background:var(--bg-2);
+  border:1px solid var(--bd1); border-radius:4px; padding:1px 5px; }
+
+/* 产物行：类型徽章单色族（同族锁定），图片卡带真缩略图 */
+.produced { display:flex; flex-direction:column; gap:8px; margin-top:2px; }
+.produced .cap { font-size:11.5px; color:var(--fg-3); display:flex; align-items:center; gap:6px; }
+.produced .grid { display:flex; flex-wrap:wrap; gap:8px; }
+.pcard { display:flex; align-items:center; gap:8px; height:34px; padding:0 10px 0 7px;
+  border:1px solid var(--bd2); border-radius:8px; background:var(--bg); cursor:pointer;
+  font-size:12px; color:var(--fg); transition:background .16s ease, transform .05s ease; }
+.pcard:hover { background:var(--hover); }
+.pcard:active { transform:translateY(.5px); }
+.pcard.sel { border-color:var(--fg); }
+.tag { flex:none; height:20px; min-width:30px; padding:0 5px; border-radius:5px; background:var(--bg-2);
+  border:1px solid var(--bd1); color:var(--fg-2); font-family:var(--mono); font-size:9.5px;
+  font-weight:600; display:inline-flex; align-items:center; justify-content:center; letter-spacing:.02em; }
+.pcard .sz { color:var(--fg-3); font-family:var(--mono); font-size:10.5px; }
+
+/* 图片/视频卡：缩略图前置（功能角标：视频时长，产品惯例） */
+.mcard { position:relative; width:120px; height:84px; border-radius:8px; overflow:hidden;
+  border:1px solid var(--bd2); cursor:pointer; background:var(--bg-2); }
+.mcard img { width:100%; height:100%; object-fit:cover; display:block; }
+.mcard:hover::after { content:''; position:absolute; inset:0; background:rgba(15,17,21,.06); }
+.mcard .corner { position:absolute; right:5px; bottom:5px; height:16px; padding:0 5px; border-radius:4px;
+  background:rgba(15,17,21,.72); color:rgb(255,255,255); font-family:var(--mono); font-size:9.5px;
+  display:inline-flex; align-items:center; }
+.mcard .play { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:26px; height:26px; border-radius:50%; background:rgba(15,17,21,.6); color:#fff;
+  display:flex; align-items:center; justify-content:center; }
+.mcard .play svg { width:11px; height:11px; fill:#fff; stroke:none; }
+.mcard .k { position:absolute; left:5px; top:5px; }
+
+/* 音频卡：暗底（与视频舞台同族），音符 + 文件名 + 时长 */
+.acard { position:relative; width:132px; height:84px; border-radius:8px; overflow:hidden;
+  border:1px solid var(--bd2); cursor:pointer; background:rgb(16,17,21); color:rgb(235,237,240);
+  display:flex; flex-direction:column; justify-content:space-between; padding:9px 10px; }
+.acard:hover { filter:brightness(1.25); }
+.acard .note { width:15px; height:15px; flex:none; }
+.acard .meta { display:flex; align-items:baseline; justify-content:space-between; gap:6px; min-width:0; }
+.acard .fn { font-family:var(--mono); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.acard .dur { font-family:var(--mono); font-size:9.5px; color:rgba(235,237,240,.65); flex:none; }
+/* chip 行里的小号音频卡（居中：音符 + 时长，文件名走 title） */
+.acard.s { width:84px; height:56px; padding:0; flex-direction:row; align-items:center; justify-content:center; gap:6px; }
+.acard.s .note { width:13px; height:13px; }
+/* 空态一行：还没有产物 */
+.produced.empty { border:1px dashed var(--bd3); border-radius:8px; padding:12px 14px; }
+
+/* ─────────────────────── 画板 B：真分屏 + 交互预览 ─────────────────────── */
+.split { display:flex; gap:0; width:1180px; height:760px; background:var(--bg);
+  border:1px solid var(--bd2); border-radius:12px; overflow:hidden;
+  box-shadow:0 8px 24px rgba(15,17,21,.06); }
+.split .chatpane { flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid var(--bd1); }
+.split .chatpane .chat-body { overflow-y:auto; }
+
+/* 预览面板：默认 440px，左缘可拖拽（真分屏：给对话区留 padding，不遮挡） */
+.pv { width:460px; flex:none; display:flex; flex-direction:column; background:var(--bg); position:relative; }
+.pv .grip { position:absolute; left:-3px; top:0; bottom:0; width:7px; cursor:ew-resize; z-index:2; }
+.pv .grip:hover, .pv .grip.drag { background:var(--blue-bg); }
+.pv-head { display:flex; align-items:center; gap:4px; padding:7px 8px; border-bottom:1px solid var(--bd1); flex:none; }
+.pv-btn { width:26px; height:26px; border:0; border-radius:6px; background:transparent; color:var(--fg-3);
+  cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.pv-btn:hover { background:var(--hover); color:var(--fg); }
+.pv-btn:disabled { opacity:.35; cursor:default; background:transparent; }
+.pv-title { display:flex; align-items:center; gap:6px; min-width:0; }
+.pv-title .n { font-size:12px; font-weight:600; font-family:var(--mono); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+.pv-kind { font-size:10px; color:var(--fg-3); font-family:var(--mono); border:1px solid var(--bd1);
+  border-radius:4px; padding:1px 4px; flex:none; }
+.pv-url { flex:1; min-width:0; height:24px; border:1px solid var(--bd1); border-radius:6px;
+  background:var(--bg-2); color:var(--fg-2); font-size:11px; font-family:var(--mono);
+  padding:0 8px; outline:0; display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pv-body { flex:1; min-height:0; position:relative; overflow:auto; background:var(--bg); }
+.pv-status { flex:none; border-top:1px solid var(--bd1); padding:6px 10px; font-size:10.5px;
+  font-family:var(--mono); color:var(--fg-3); display:flex; align-items:center; gap:6px; }
+.dot { width:6px; height:6px; border-radius:50%; flex:none; }
+.dot.ok { background:var(--green); }
+.dot.err { background:var(--red); }
+.dot.wait { background:var(--amber); }
+
+/* 面板内容：Markdown 富文本 */
+.md { padding:18px 20px 26px; font-size:13px; line-height:1.75; color:var(--fg); max-width:64ch; }
+.md h2 { font-size:16px; letter-spacing:-.01em; margin:14px 0 8px; }
+.md h3 { font-size:13.5px; margin:14px 0 6px; }
+.md p { margin:6px 0; color:var(--fg); }
+.md ul { margin:6px 0 6px 18px; }
+.md li { margin:3px 0; }
+.md code { font-family:var(--mono); font-size:11.5px; background:var(--bg-2); border:1px solid var(--bd1);
+  border-radius:4px; padding:1px 5px; }
+.md pre { font-family:var(--mono); font-size:11.5px; background:var(--bg-2); border:1px solid var(--bd1);
+  border-radius:8px; padding:10px 12px; overflow:auto; margin:8px 0; line-height:1.6; }
+.md table { border-collapse:collapse; margin:8px 0; width:100%; font-size:12px; }
+.md th, .md td { text-align:left; padding:5px 8px; }
+.md th { color:var(--fg-3); font-weight:600; font-size:11px; }
+.md tbody tr + tr td { border-top:1px solid var(--bd1); } /* 表格只给行底发丝线 */
+.md .quote { border-left:2px solid var(--dim); padding-left:10px; color:var(--fg-2); margin:8px 0; }
+
+/* 面板内容：代码 */
+.code { padding:14px 0 24px; font-family:var(--mono); font-size:11.8px; line-height:1.65; }
+.code .ln { display:inline-block; width:38px; padding-right:10px; text-align:right; color:var(--dim); user-select:none; }
+.code .kw { color:rgb(190,24,93); } .code .st { color:rgb(21,101,50); } .code .cm { color:var(--fg-3); }
+.code .nu { color:rgb(15,108,189); }
+.code pre { display:block; white-space:pre; padding-right:14px; }
+.code .hl { background:var(--blue-bg); display:block; }
+
+/* 面板内容：图片（棋盘底衬透明图）与视频（黑舞台） */
+.stage { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.stage.checker { background:
+  repeating-conic-gradient(var(--bg-2) 0% 25%, var(--bg) 0% 50%) 0 0 / 16px 16px; }
+.stage.imgwrap img { max-width:calc(100% - 32px); max-height:calc(100% - 32px);
+  border:1px solid var(--bd2); border-radius:6px; background:var(--bg);
+  box-shadow:0 10px 28px rgba(15,17,21,.12); }
+.stage.video { background:rgb(12,13,16); }
+.stage.video video { max-width:100%; max-height:100%; width:100%; }
+.stage.audio { background:rgb(12,13,16); flex-direction:column; gap:16px; }
+.stage.audio .note { width:34px; height:34px; color:rgb(112,118,126); }
+.stage.audio audio { width:78%; }
+
+/* 面板内容：CSV 表 */
+.csv { padding:14px 16px; }
+.csv table { border-collapse:collapse; width:100%; font-size:12px; }
+.csv th { background:var(--bg-2); font-family:var(--mono); font-size:10.5px; color:var(--fg-2); }
+.csv th, .csv td { padding:6px 9px; border:1px solid var(--bd1); text-align:left; }
+.csv td.num { font-family:var(--mono); text-align:right; }
+
+/* 面板内容：iframe 网页预览 */
+.frame { position:absolute; inset:0; border:0; width:100%; height:100%; background:var(--bg); }
+.pv-chips { display:flex; gap:5px; padding:6px 8px; border-bottom:1px solid var(--bd1); flex-wrap:wrap; flex:none; }
+.pv-chips[hidden] { display:none; } /* display:flex 会压过 UA 的 [hidden]，显式关掉 */
+
+/* ── 面板标签页：多产物并开 / 切换 / 关闭 ── */
+.pv-tabs { display:flex; gap:2px; padding:6px 8px 0; border-bottom:1px solid var(--bd1);
+  overflow-x:auto; flex:none; scrollbar-width:thin; }
+.pv-tabs[hidden] { display:none; }
+.ptab { display:flex; align-items:center; gap:6px; height:27px; padding:0 6px 0 5px; font-size:11.5px;
+  color:var(--fg-3); cursor:pointer; flex:none; user-select:none; border:1px solid transparent;
+  border-radius:7px 7px 0 0; transition:background .16s ease; }
+.ptab:hover { color:var(--fg-2); background:var(--hover); }
+.ptab.on { color:var(--fg); background:var(--bg); border-color:var(--bd1) var(--bd1) var(--bg);
+  margin-bottom:-1px; font-weight:500; } /* 活动页下边缘与内容连通，吃掉行底线 */
+.ptab .tag { height:16px; min-width:26px; font-size:8.5px; }
+.ptab .n { max-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-family:var(--mono); font-size:11px; }
+.ptab .x { width:16px; height:16px; border-radius:4px; display:flex; align-items:center;
+  justify-content:center; color:var(--fg-3); flex:none; }
+.ptab .x:hover { background:rgba(38,49,72,.12); color:var(--fg); }
+.ptab .x svg { width:9px; height:9px; stroke-width:2; }
+.chip { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px; border:1px solid var(--bd2);
+  border-radius:10px; font-size:10.5px; color:var(--fg-2); font-family:var(--mono); cursor:pointer;
+  background:var(--bg); }
+.chip:hover { background:var(--hover); }
+.chip.on { border-color:var(--fg); color:var(--fg); font-weight:600; }
+.chip.hint { border-style:dashed; color:var(--fg-3); }
+
+/* 加载骨架（与内容同形；reduced-motion 下静态） */
+.skel { padding:18px 20px; display:flex; flex-direction:column; gap:10px; }
+.skel i { display:block; height:12px; border-radius:4px; background:linear-gradient(90deg, var(--skel) 25%, rgb(224,228,233) 50%, var(--skel) 75%);
+  background-size:200% 100%; animation:sh 1.1s ease-in-out infinite; }
+.skel i.t { height:20px; width:55%; } .skel i.a { width:92%; } .skel i.b { width:78%; } .skel i.c { width:86%; }
+@keyframes sh { 0% { background-position:120% 0; } 100% { background-position:-20% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .skel i { animation:none; }
+  .pcard, .mcard, .chip, .pv-btn { transition:none; }
+}
+
+/* 错误 / 不支持 状态卡 */
+.state { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:10px; text-align:center; padding:28px; }
+.state .glyph { width:40px; height:40px; color:var(--dim); stroke-width:1.2; }
+.state h4 { font-size:13px; font-weight:600; }
+.state p { font-size:12px; color:var(--fg-2); line-height:1.7; max-width:32ch; }
+.state .meta { font-family:var(--mono); font-size:10.5px; color:var(--fg-3); }
+.btn { height:28px; padding:0 12px; border-radius:7px; border:1px solid var(--bd2); background:var(--bg);
+  font-size:12px; color:var(--fg); cursor:pointer; font-family:inherit; }
+.btn:hover { background:var(--hover); }
+.btn.primary { background:var(--fg); border-color:var(--fg); color:var(--bg); }
+.btn.primary:hover { filter:brightness(1.15); }
+.btnrow { display:flex; gap:8px; }
+
+/* 画板 C / D 的小面板复用 .pv（定高） */
+.mini { width:340px; height:520px; background:var(--bg); border:1px solid var(--bd2); border-radius:12px;
+  overflow:hidden; display:flex; flex-direction:column; box-shadow:0 8px 24px rgba(15,17,21,.06); }
+.mini .pv-url { font-size:10px; }
+.mini .pv-title .n { max-width:130px; }
+.foot { width:100%; font-size:11px; color:var(--fg-3); line-height:1.8; max-width:1200px; }
+.foot b { color:var(--fg-2); }
+</style>
+</head>
+<body>
+
+<h1>LX-DSH 产物预览 · 设计原型（文件 / 图片 / 视频 / 音频 / 网页）</h1>
+<p class="note">参考实现：dsh-artifact-preview（对话内产物卡片 + 可拖宽真分屏侧栏，iframe 沙箱网页预览）+
+attachment_preview（视频/音频舞台）。本稿在两者之上补齐<strong>视频与音频</strong>形态、<strong>标签页</strong>、<strong>分类排序规则</strong>与完整状态族。
+画板 B 可交互：点对话里的产物卡片，右侧面板按类型切换渲染、并开标签。</p>
+
+<!-- ═════════════════ 画板 A：对话内产物行（入口） ═════════════════ -->
+<div class="board">
+  <span class="board-label"><b>A</b> · 对话内产物行（分类：媒体道 + 文件道，优先级见页脚）</span>
+  <div class="chat">
+    <div class="chat-head">
+      <svg class="ic s" viewBox="0 0 16 16"><path d="M8 2v4M8 14a6 6 0 1 0-6-6"/></svg>
+      设备看板重构 · myt-agent
+    </div>
+    <div class="chat-body">
+      <div class="msg-user">把心跳日志的采集逻辑抽出来，出一版接口文档和一个演示页面</div>
+      <div class="msg-a">已完成。心跳采集抽象为 <span class="f">HeartbeatCollector</span>，文档在 <span class="f">docs/heartbeat-api.md</span>，演示页 <span class="f">demo/heartbeat.html</span> 直接打开可用。本轮产物：</div>
+      <div class="produced">
+        <span class="cap">
+          <svg class="ic s" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7"/></svg>
+          产物 · 8 个（媒体 3 / 文件 5）
+        </span>
+        <!-- 媒体道：视频 → 图片 → 音频（可演示的动体在前，静态次之，听觉殿后） -->
+        <div class="grid">
+          <div class="mcard" title="heartbeat-demo.mp4">
+            <img src="https://picsum.photos/seed/lxdsh-video/240/168?grayscale" alt="演示视频首帧">
+            <span class="play"><svg viewBox="0 0 16 16"><path d="M5 3.5l8 4.5-8 4.5z"/></svg></span>
+            <span class="corner">0:10</span>
+          </div>
+          <div class="mcard" title="capture-screen.png">
+            <img src="https://picsum.photos/seed/lxdsh-capture/240/168" alt="设备看板截图预览">
+          </div>
+          <div class="acard" title="narration.mp3">
+            <svg class="note" viewBox="0 0 16 16"><path d="M6.2 12.3V4.2l6-1.5v8.1" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.7" cy="12.3" r="1.7" fill="currentColor"/><circle cx="10.7" cy="10.8" r="1.7" fill="currentColor"/></svg>
+            <span class="meta"><span class="fn">narration.mp3</span><span class="dur">0:42</span></span>
+          </div>
+        </div>
+        <!-- 文件道：网页 → 文档 → 数据 → 代码 → 二进制（可运行的先行，纯素材殿后） -->
+        <div class="grid">
+          <div class="pcard"><span class="tag">WEB</span>heartbeat.html</div>
+          <div class="pcard"><span class="tag">MD</span>heartbeat-api.md<span class="sz">4.2 KB</span></div>
+          <div class="pcard"><span class="tag">CSV</span>devices.csv</div>
+          <div class="pcard"><span class="tag">TS</span>collector.ts<span class="sz">7.9 KB</span></div>
+          <div class="pcard"><span class="tag">BIN</span>model.ckpt<span class="sz">128 MB</span></div>
+        </div>
+      </div>
+      <div class="produced empty">
+        <span class="cap">
+          <svg class="ic s" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/></svg>
+          还没有产物 · 让 agent 写一个文件试试
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ 画板 B：真分屏 + 可交互预览（点产物卡切换） ═════════════ -->
+<div class="board" style="width:100%">
+  <span class="board-label"><b>B</b> · 真分屏 + 标签页（点左侧产物卡片并开标签；点 × 关闭；全关出空态；左缘可拖宽）</span>
+  <div class="split">
+    <div class="chatpane">
+      <div class="chat-head">
+        <svg class="ic s" viewBox="0 0 16 16"><path d="M8 2v4M8 14a6 6 0 1 0-6-6"/></svg>
+        设备看板重构 · myt-agent
+      </div>
+      <div class="chat-body">
+        <div class="msg-a">已完成。本轮产物（点击预览）：</div>
+        <div class="produced">
+          <div class="grid" id="chipRow">
+            <div class="mcard" data-kind="video" title="heartbeat-demo.mp4" style="width:84px;height:56px">
+              <img src="https://picsum.photos/seed/lxdsh-video/168/112?grayscale" alt="heartbeat-demo.mp4 首帧">
+              <span class="play"><svg viewBox="0 0 16 16"><path d="M5 3.5l8 4.5-8 4.5z"/></svg></span>
+            </div>
+            <div class="mcard" data-kind="img" title="capture-screen.png" style="width:84px;height:56px">
+              <img src="https://picsum.photos/seed/lxdsh-capture/168/112" alt="capture-screen.png">
+            </div>
+            <div class="acard s" data-kind="audio" title="narration.mp3">
+              <svg class="note" viewBox="0 0 16 16"><path d="M6.2 12.3V4.2l6-1.5v8.1" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.7" cy="12.3" r="1.7" fill="currentColor"/><circle cx="10.7" cy="10.8" r="1.7" fill="currentColor"/></svg>
+              <span class="dur">0:42</span>
+            </div>
+            <div class="pcard" data-kind="web"><span class="tag">WEB</span>heartbeat.html</div>
+            <div class="pcard" data-kind="md"><span class="tag">MD</span>heartbeat-api.md</div>
+            <div class="pcard" data-kind="csv"><span class="tag">CSV</span>devices.csv</div>
+            <div class="pcard" data-kind="code"><span class="tag">TS</span>collector.ts</div>
+            <div class="pcard" data-kind="bin"><span class="tag">BIN</span>model.ckpt<span class="sz">128 MB</span></div>
+          </div>
+        </div>
+        <div class="msg-a" style="color:var(--fg-2);font-size:12px">面板打开时对话区整体左移不被遮挡（body 留白 = 面板宽），关闭后恢复。网页形态走沙箱 iframe，顶部出现端口 chips。</div>
+      </div>
+    </div>
+
+    <div class="pv" id="pv">
+      <div class="grip" id="grip" title="拖动调整宽度"></div>
+      <div class="pv-head">
+        <button class="pv-btn" id="navBack" title="后退" disabled><svg class="ic" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>
+        <button class="pv-btn" id="navFwd" title="前进" disabled><svg class="ic" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>
+        <button class="pv-btn" title="重新读取" id="navReload"><svg class="ic" viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3"/></svg></button>
+        <div class="pv-title"><span class="pv-kind" id="pvKind">MD</span><span class="n" id="pvName">heartbeat-api.md</span></div>
+        <input class="pv-url" id="pvUrl" value="C:/work/myt-agent/docs/heartbeat-api.md" readonly>
+        <button class="pv-btn" title="在系统应用打开"><svg class="ic" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3 7.5 8.5M11 9.5v3h-7v-7h3"/></svg></button>
+        <button class="pv-btn" title="关闭预览"><svg class="ic" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <div class="pv-tabs" id="pvTabs"></div>
+      <div class="pv-chips" id="pvChips" hidden>
+        <span class="chip hint">端口</span>
+        <span class="chip on">5173</span><span class="chip">3000</span><span class="chip">8080</span>
+        <span class="chip" title="重新探测">⟳</span>
+      </div>
+      <div class="pv-body" id="pvBody"><!-- JS 按类型渲染 --></div>
+      <div class="pv-status"><span class="dot ok"></span><span id="pvStatus">已渲染 · heartbeat-api.md · 4.2 KB</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════ 画板 C：媒体形态家族 ═════════════════ -->
+<div class="board" style="width:100%">
+  <span class="board-label"><b>C</b> · 媒体形态：图片（棋盘底衬）· 视频（黑舞台）· 音频（暗舞台）· 网页（沙箱 iframe）</span>
+  <div class="rowline">
+
+    <div class="mini">
+      <div class="pv-head">
+        <span class="pv-kind">IMG</span><span class="n">capture-screen.png</span>
+        <span style="flex:1"></span>
+        <button class="pv-btn" title="原始尺寸 1512×982"><svg class="ic" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></button>
+        <button class="pv-btn" title="关闭预览"><svg class="ic" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <div class="pv-body">
+        <div class="stage checker imgwrap">
+          <img src="https://picsum.photos/seed/lxdsh-capture/600/420" alt="设备看板截图，透明区以棋盘格衬底">
+        </div>
+      </div>
+      <div class="pv-status"><span class="dot ok"></span>1512 × 982 · PNG · 326 KB · 点击放大看原图</div>
+    </div>
+
+    <div class="mini">
+      <div class="pv-head">
+        <span class="pv-kind">VID</span><span class="n">heartbeat-demo.mp4</span>
+        <span style="flex:1"></span>
+        <button class="pv-btn" title="系统播放器打开"><svg class="ic" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3 7.5 8.5M11 9.5v3h-7v-7h3"/></svg></button>
+        <button class="pv-btn" title="关闭预览"><svg class="ic" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <div class="pv-body">
+        <div class="stage video">
+          <video controls preload="metadata" poster="https://picsum.photos/seed/lxdsh-video/680/382">
+            <source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" type="video/mp4">
+            当前构建不支持内嵌视频，请在系统播放器打开。
+          </video>
+        </div>
+      </div>
+      <div class="pv-status"><span class="dot ok"></span>H.264 · 0:10 · 1.2 MB · 原生控件（进度/倍速/音量/全屏）</div>
+    </div>
+
+    <div class="mini">
+      <div class="pv-head">
+        <span class="pv-kind">AUD</span><span class="n">narration.mp3</span>
+        <span style="flex:1"></span>
+        <button class="pv-btn" title="系统播放器打开"><svg class="ic" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3 7.5 8.5M11 9.5v3h-7v-7h3"/></svg></button>
+        <button class="pv-btn" title="关闭预览"><svg class="ic" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <div class="pv-body">
+        <div class="stage audio">
+          <svg class="note" viewBox="0 0 16 16"><path d="M6.2 12.3V4.2l6-1.5v8.1" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.7" cy="12.3" r="1.7" fill="currentColor"/><circle cx="10.7" cy="10.8" r="1.7" fill="currentColor"/></svg>
+          <audio controls preload="metadata" src="https://mdn.github.io/webaudio-examples/audio-basics/outfoxing.mp3"></audio>
+        </div>
+      </div>
+      <div class="pv-status"><span class="dot ok"></span>MP3 · 暗舞台与视频同族 · 原生控件（进度/音量/倍速）</div>
+    </div>
+
+    <div class="mini">
+      <div class="pv-head">
+        <button class="pv-btn" disabled><svg class="ic" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>
+        <button class="pv-btn" disabled><svg class="ic" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>
+        <button class="pv-btn"><svg class="ic" viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3"/></svg></button>
+        <input class="pv-url" value="file:///C:/work/myt-agent/demo/heartbeat.html" readonly>
+        <button class="pv-btn"><svg class="ic" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3 7.5 8.5M11 9.5v3h-7v-7h3"/></svg></button>
+        <button class="pv-btn"><svg class="ic" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <div class="pv-chips"><span class="chip hint">端口</span><span class="chip">5173</span><span class="chip">3000</span><span class="chip">⟳</span></div>
+      <div class="pv-body">
+        <iframe class="frame" title="heartbeat.html 沙箱预览" sandbox="allow-scripts" srcdoc='<!DOCTYPE html><html><head><style>body{margin:0;font-family:system-ui,sans-serif;background:#0f1115;color:#e6e8ec;padding:18px}h1{font-size:15px;margin:0 0 12px}.k{display:flex;gap:10px}.c{flex:1;background:#171a20;border:1px solid #262b34;border-radius:10px;padding:12px}.c b{font-size:22px;display:block;color:#35d07f}small{color:#8a929d;font-size:10px}svg{width:100%;height:64px;margin-top:14px}</style></head><body><h1>心跳监控 Demo</h1><div class=k><div class=c><small>在线设备</small><b>142</b></div><div class=c><small>丢包率</small><b>0.4%</b></div></div><svg viewBox="0 0 300 64"><polyline points="0,50 30,38 60,44 90,20 120,30 150,12 180,26 210,8 240,22 270,16 300,6" fill="none" stroke="#35d07f" stroke-width="2"/></svg></body></html>'></iframe>
+      </div>
+      <div class="pv-status"><span class="dot ok"></span>sandbox=allow-scripts · 外链一律走系统浏览器</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═════════════════ 画板 D：状态家族 ═════════════════ -->
+<div class="board" style="width:100%">
+  <span class="board-label"><b>D</b> · 状态家族：读取中 / 读取失败 / 不支持类型（回退路径明确）</span>
+  <div class="rowline">
+
+    <div class="mini">
+      <div class="pv-head"><span class="pv-kind">MD</span><span class="n">big-report.md</span><span style="flex:1"></span></div>
+      <div class="pv-body">
+        <div class="skel"><i class="t"></i><i class="a"></i><i class="b"></i><i class="a"></i><i class="c"></i><i class="b"></i><i style="width:40%"></i></div>
+      </div>
+      <div class="pv-status"><span class="dot wait"></span>读取中 · big-report.md</div>
+    </div>
+
+    <div class="mini">
+      <div class="pv-head"><span class="pv-kind">TS</span><span class="n">collector.ts</span><span style="flex:1"></span></div>
+      <div class="pv-body">
+        <div class="state">
+          <svg class="ic glyph" viewBox="0 0 40 40"><path d="M20 6 35 32H5L20 6z" fill="none"/><path d="M20 17v7M20 28.5v.5"/></svg>
+          <h4>文件已不存在或无权访问</h4>
+          <p>产物路径是写入时的快照，文件可能被移动或删除。读取失败不影响对话本身。</p>
+          <span class="meta">ENOENT · C:/work/myt-agent/src/collector.ts</span>
+          <div class="btnrow"><button class="btn">重新读取</button><button class="btn primary">在文件夹中定位</button></div>
+        </div>
+      </div>
+      <div class="pv-status"><span class="dot err"></span>读取失败 · ENOENT</div>
+    </div>
+
+    <div class="mini">
+      <div class="pv-head"><span class="pv-kind">BIN</span><span class="n">model.ckpt</span><span style="flex:1"></span></div>
+      <div class="pv-body">
+        <div class="state">
+          <svg class="ic glyph" viewBox="0 0 40 40"><path d="M8 12h24M8 20h24M8 28h16" /><rect x="4" y="6" width="32" height="28" rx="3" fill="none"/></svg>
+          <h4>二进制文件，不适合预览</h4>
+          <p>这类产物交给系统应用打开更可靠。预览面板只渲染有把握的类型。</p>
+          <span class="meta">128 MB · 修改于 2 小时前</span>
+          <div class="btnrow"><button class="btn primary">在系统默认应用打开</button><button class="btn">复制路径</button></div>
+        </div>
+      </div>
+      <div class="pv-status"><span class="dot wait"></span>不支持的类型 · 已给回退路径</div>
+    </div>
+
+    <div class="mini">
+      <div class="pv-head"><span class="pv-kind">JSON</span><span class="n">config.json</span><span style="flex:1"></span></div>
+      <div class="pv-body" style="padding:14px 0;font-family:var(--mono);font-size:11.8px;line-height:1.7">
+        <div style="padding:0 14px;color:var(--fg-2)">{ <span style="color:rgb(15,108,189)">"heartbeat"</span>: { <span style="color:rgb(15,108,189)">"intervalMs"</span>: <span style="color:rgb(190,24,93)">3000</span>,</div>
+        <div style="padding:0 14px;color:var(--fg-2)">  <span style="color:rgb(15,108,189)">"retry"</span>: { <span style="color:rgb(15,108,189)">"max"</span>: <span style="color:rgb(190,24,93)">5</span>, <span style="color:rgb(15,108,189)">"backoff"</span>: <span style="color:rgb(21,101,50)">"exp"</span> },</div>
+        <div style="padding:0 14px;color:var(--fg-2)">  <span style="color:rgb(15,108,189)">"logFile"</span>: <span style="color:rgb(21,101,50)">"./logs/hb.log"</span> }</div>
+        <div style="padding:0 14px;color:var(--fg-2)">}</div>
+        <div style="margin-top:10px;border-top:1px solid var(--bd1);padding-top:8px;font-family:var(--sans);font-size:11px;color:var(--fg-3)">
+          <div style="display:flex;justify-content:space-between;padding:2px 14px;background:var(--hover);border-radius:4px;margin:0 8px"><span style="font-family:var(--mono);font-size:10.5px">▾ retry · 2 项</span><span style="font-family:var(--mono);font-size:10px;color:var(--fg-3)">折叠</span></div>
+        </div>
+      </div>
+      <div class="pv-status"><span class="dot ok"></span>可折叠树 · 值类型着色（JSON 形态）</div>
+    </div>
+
+  </div>
+</div>
+
+<p class="foot">
+  <b>分类与优先级</b>：产物行分两道——<b>媒体道</b>（视频 → 图片 → 音频：缩略图/播放卡，能演示的动体在前，静态次之，听觉殿后）在前，<b>文件道</b>（网页 → 文档 → 数据 → 代码 → 二进制：可运行的先行，纯素材殿后）在后；单类产物只出一道，同优先级按写入时间新→旧。
+  <b>标签页</b>：面板支持多产物并开（类型徽章 + 文件名 + ×），已开的产物再点只聚焦不重开，关闭活动页落到邻居，全关出空态。
+  <b>动效只有两处（MOTION 2）</b>：卡片 hover 底色 + 面板内容切换的 240ms 淡入，均受 prefers-reduced-motion 关闭。
+  <b>颜色族锁定</b>：类型徽章全单色（不做彩虹分类色），音频卡暗底与视频舞台同族，状态点只在语义位出现（ok/err/wait）。
+  <b>依赖结论（零新增）</b>：文本渲染全部复用 ui-primitives 现有原语——MarkdownText（micromark GFM + math + katex）、CodeBlock（shiki）、JsonBlock / JsonTree、TerminalBlock（anser，日志类产物）、ReadBlock（读文件卡同款）；CSV 手写约 30 行 RFC4180 解析（带引号转义）渲染成表格，不为单一格式引依赖。
+  <b>与产品现状的接缝</b>：产物数据源 = ui-deliverables 的 turn 投影（零改动）；内容读取走宿主文件路由（有 /dsh-files/static 则用，没有则 LX-DSH 壳加一条 IPC）；网页沙箱 = iframe sandbox=allow-scripts；音频/视频/图片直链同一文件路由。
+</p>
+
+<script>
+// 画板 B 的最小状态机：chip → 开标签（已开则聚焦）→ 类型路由 → 骨架过渡 → 内容。刻意零依赖。
+(() => {
+  const body = document.getElementById('pvBody')
+  const name = document.getElementById('pvName')
+  const kindEl = document.getElementById('pvKind')
+  const url = document.getElementById('pvUrl')
+  const status = document.getElementById('pvStatus')
+  const dot = document.querySelector('#pv .dot')
+  const chips = document.getElementById('pvChips')
+  const tabsEl = document.getElementById('pvTabs')
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const views = {
+    md: { n:'heartbeat-api.md', k:'MD', u:'C:/work/myt-agent/docs/heartbeat-api.md', html:
+      `<div class="md"><h2>心跳采集接口</h2>
+       <p>设备每 <code>3s</code> 上报一次心跳，网关按 <code>device_id</code> 聚合。丢包率超过阈值触发告警。</p>
+       <h3>上报字段</h3>
+       <table><thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+       <tbody><tr><td><code>ts</code></td><td>int64</td><td>毫秒时间戳</td></tr>
+       <tr><td><code>seq</code></td><td>uint32</td><td>设备侧自增，允许跳号</td></tr>
+       <tr><td><code>load</code></td><td>float</td><td>1 分钟平均负载</td></tr></tbody></table>
+       <h3>采集端伪代码</h3>
+       <pre>for await (const msg of ws.inbound) {
+  store.commit(msg.deviceId, msg)
+}</pre>
+       <div class="quote">网关重启期间 seq 不清零，聚合侧按设备维度维护水位。</div></div>`,
+      s:'已渲染 · heartbeat-api.md · 4.2 KB', d:'ok' },
+    code: { n:'collector.ts', k:'TS', u:'C:/work/myt-agent/src/collector.ts', html:
+      `<div class="code"><pre><span class="ln">1</span><span class="cm">// 心跳采集：从 WS 入站流聚合设备状态</span>
+<span class="ln">2</span><span class="kw">import</span> { DeviceStore } <span class="kw">from</span> <span class="st">'./store'</span>
+<span class="ln">3</span>
+<span class="ln">4</span><span class="kw">export class</span> HeartbeatCollector {
+<span class="ln">5</span>  <span class="kw">private readonly</span> store = <span class="kw">new</span> DeviceStore()
+<span class="ln">6</span>
+<span class="ln">7</span>  <span class="kw">async</span> run(signal: AbortSignal): <span class="kw">Promise</span>&lt;<span class="kw">void</span>&gt; {
+<span class="hl"><span class="ln">8</span>    <span class="kw">for await</span> (<span class="kw">const</span> msg <span class="kw">of</span> <span class="kw">this</span>.inbound(signal)) {</span>
+<span class="ln">9</span>      <span class="kw">this</span>.store.commit(msg.deviceId, msg)
+<span class="ln">10</span>      <span class="kw">if</span> (msg.seq % <span class="nu">20</span> === <span class="nu">0</span>) <span class="kw">await</span> <span class="kw">this</span>.flush()
+<span class="ln">11</span>    }
+<span class="ln">12</span>  }
+<span class="ln">13</span>}</pre></div>`,
+      s:'已渲染 · collector.ts · 7.9 KB · 高亮为示意', d:'ok' },
+    img: { n:'capture-screen.png', k:'IMG', u:'C:/work/myt-agent/docs/capture-screen.png', html:
+      `<div class="stage checker imgwrap"><img src="https://picsum.photos/seed/lxdsh-capture/820/560" alt="设备看板截图预览"></div>`,
+      s:'1512 × 982 · PNG · 326 KB', d:'ok' },
+    video: { n:'heartbeat-demo.mp4', k:'VID', u:'C:/work/myt-agent/demo/heartbeat-demo.mp4', html:
+      `<div class="stage video"><video controls preload="metadata" poster="https://picsum.photos/seed/lxdsh-video/820/460"><source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" type="video/mp4"></video></div>`,
+      s:'H.264 · 0:10 · 1.2 MB', d:'ok' },
+    audio: { n:'narration.mp3', k:'AUD', u:'C:/work/myt-agent/demo/narration.mp3', html:
+      `<div class="stage audio"><svg class="note" viewBox="0 0 16 16"><path d="M6.2 12.3V4.2l6-1.5v8.1" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.7" cy="12.3" r="1.7" fill="currentColor"/><circle cx="10.7" cy="10.8" r="1.7" fill="currentColor"/></svg>
+       <audio controls preload="metadata" src="https://mdn.github.io/webaudio-examples/audio-basics/outfoxing.mp3"></audio></div>`,
+      s:'MP3 · 原生控件（进度/音量/倍速）', d:'ok' },
+    csv: { n:'devices.csv', k:'CSV', u:'C:/work/myt-agent/data/devices.csv', html:
+      `<div class="csv"><table><thead><tr><th>device_id</th><th>region</th><th>last_hb</th><th>loss</th></tr></thead>
+       <tbody><tr><td>66e74ed3</td><td>cn-nb1</td><td>12:04:31</td><td class="num">0.4%</td></tr>
+       <tr><td>a31f9c02</td><td>cn-nb1</td><td>12:04:29</td><td class="num">0.0%</td></tr>
+       <tr><td>f8d201be</td><td>ap-se1</td><td>12:03:58</td><td class="num">1.2%</td></tr>
+       <tr><td>90cc47d1</td><td>eu-wc2</td><td>12:04:30</td><td class="num">0.1%</td></tr></tbody></table></div>`,
+      s:'4 行 × 4 列 · 1.1 KB · 表格化渲染', d:'ok' },
+    web: { n:'heartbeat.html', k:'WEB', u:'file:///C:/work/myt-agent/demo/heartbeat.html', html:
+      `<iframe class="frame" title="heartbeat.html 沙箱预览" sandbox="allow-scripts" srcdoc='<!DOCTYPE html><html><head><style>body{margin:0;font-family:system-ui,sans-serif;background:#0f1115;color:#e6e8ec;padding:20px}h1{font-size:15px;margin:0 0 12px}.k{display:flex;gap:10px}.c{flex:1;background:#171a20;border:1px solid #262b34;border-radius:10px;padding:12px}.c b{font-size:22px;display:block;color:#35d07f}small{color:#8a929d;font-size:10px}svg{width:100%;height:88px;margin-top:14px}</style></head><body><h1>心跳监控 Demo</h1><div class=k><div class=c><small>在线设备</small><b>142</b></div><div class=c><small>丢包率</small><b>0.4%</b></div></div><svg viewBox="0 0 300 88"><polyline points="0,70 30,54 60,60 90,30 120,44 150,18 180,38 210,10 240,30 270,22 300,8" fill="none" stroke="#35d07f" stroke-width="2"/></svg></body></html>'></iframe>`,
+      s:'沙箱 iframe · 外链走系统浏览器', d:'ok', showChips:true },
+    bin: { n:'model.ckpt', k:'BIN', u:'C:/work/myt-agent/artifacts/model.ckpt', html:
+      `<div class="state"><svg class="ic glyph" viewBox="0 0 40 40"><path d="M8 12h24M8 20h24M8 28h16"/><rect x="4" y="6" width="32" height="28" rx="3" fill="none"/></svg>
+       <h4>二进制文件，不适合预览</h4><p>这类产物交给系统应用打开更可靠。</p>
+       <span class="meta">128 MB · application/octet-stream</span>
+       <div class="btnrow"><button class="btn primary">在系统默认应用打开</button><button class="btn">复制路径</button></div></div>`,
+      s:'不支持的类型 · 已给回退路径', d:'wait' },
+  }
+
+  let timer = 0
+  const order = []      // 打开的标签顺序（key 数组）
+  let active = null     // 当前聚焦的 key
+
+  const renderTabs = () => {
+    tabsEl.hidden = order.length === 0
+    tabsEl.replaceChildren()
+    for (const key of order) {
+      const v = views[key]
+      const t = document.createElement('div')
+      t.className = 'ptab' + (key === active ? ' on' : '')
+      t.title = v.u
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = v.k
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = v.n
+      const x = document.createElement('span'); x.className = 'x'; x.title = '关闭标签'
+      x.innerHTML = '<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+      t.append(tag, n, x)
+      t.addEventListener('click', (e) => {
+        if (e.target.closest('.x') !== null) closeTab(key)
+        else focus(key)
+      })
+      tabsEl.appendChild(t)
+    }
+  }
+
+  const renderView = (v) => {
+    name.textContent = v.n
+    kindEl.textContent = v.k
+    url.value = v.u
+    chips.hidden = v.showChips !== true
+    dot.className = 'dot wait'
+    status.textContent = '读取中 · ' + v.n
+    clearTimeout(timer)
+    body.innerHTML = `<div class="skel"><i class="t"></i><i class="a"></i><i class="b"></i><i class="a"></i><i class="c"></i></div>`
+    if (!reduce) { body.style.transition = 'opacity .24s ease'; body.style.opacity = '1' }
+    timer = setTimeout(() => {
+      body.innerHTML = v.html
+      dot.className = 'dot ' + v.d
+      status.textContent = v.s
+    }, reduce ? 0 : 420)
+  }
+
+  const focus = (key) => {
+    active = key
+    renderTabs()
+    renderView(views[key])
+    document.querySelectorAll('#chipRow .pcard, #chipRow .mcard').forEach(el => el.classList.toggle('sel', el.dataset.kind === key))
+  }
+
+  /** chip 点击：没开过就开新标签，开过就聚焦；同一产物不重复开。 */
+  const openKey = (key) => {
+    if (!order.includes(key)) order.push(key)
+    focus(key)
+  }
+
+  const closeTab = (key) => {
+    const i = order.indexOf(key)
+    if (i === -1) return
+    order.splice(i, 1)
+    if (active === key) {
+      const next = order[Math.min(i, order.length - 1)]
+      if (next !== undefined) focus(next)
+      else {
+        active = null
+        renderTabs()
+        name.textContent = ''; kindEl.textContent = ''; url.value = ''
+        chips.hidden = true
+        dot.className = 'dot'
+        status.textContent = '没有打开的预览'
+        body.innerHTML = `<div class="state"><svg class="ic glyph" viewBox="0 0 40 40"><rect x="4" y="6" width="32" height="28" rx="3" fill="none"/><path d="M8 12h24M8 20h24M8 28h16"/></svg>
+          <h4>没有打开的预览</h4><p>点击对话里的产物卡片，可以在这里并开多个标签页。</p></div>`
+        document.querySelectorAll('#chipRow .pcard, #chipRow .mcard').forEach(el => el.classList.remove('sel'))
+      }
+    } else renderTabs()
+  }
+
+  document.getElementById('chipRow').addEventListener('click', (e) => {
+    const card = e.target.closest('[data-kind]')
+    if (card !== null) openKey(card.dataset.kind)
+  })
+  document.getElementById('navReload').addEventListener('click', () => {
+    if (active !== null) renderView(views[active])
+  })
+  // 初始并开三个标签：截图直接展示标签行
+  openKey('md'); openKey('code'); openKey('img'); focus('md')
+
+  // 可拖宽（280 - 720px），指针捕获在 grip 上，不污染布局
+  const pv = document.getElementById('pv')
+  const grip = document.getElementById('grip')
+  let dragX = 0, startW = 0, dragging = false
+  grip.addEventListener('pointerdown', (e) => {
+    dragging = true; grip.setPointerCapture(e.pointerId); grip.classList.add('drag')
+    dragX = e.clientX; startW = pv.getBoundingClientRect().width
+  })
+  grip.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    pv.style.width = Math.min(720, Math.max(280, startW + (dragX - e.clientX))) + 'px'
+  })
+  grip.addEventListener('pointerup', () => { dragging = false; grip.classList.remove('drag') })
+})()
+</script>
+</body>
+</html>

@@ -197,6 +197,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/title-invalid': { readonly sessionId: SessionId }
     'session/fork-unavailable': { readonly sessionId: SessionId }
     'session/rewind-unavailable': { readonly sessionId: SessionId }
+    /** Workspace preview read of a missing or unreadable file. */
+    'session/file-not-found': {}
+    /** Workspace preview read above its configured byte cap. */
+    'session/file-too-large': { readonly byteSize: number; readonly cap: number }
     'subagent/not-found': {
       readonly parentSessionId: SessionId
       readonly childSessionId: SessionId
@@ -371,6 +375,46 @@ export interface SessionOpenWorkspacePathRequest {
 export interface SessionOpenWorkspacePathValue {
   readonly opened: true
 }
+
+/** How a workspace-file read hands its bytes to the caller. */
+export type SessionReadWorkspaceFileAs = 'text' | 'bytes'
+
+/** Request to read one Session workspace file for in-app preview. */
+export interface SessionReadWorkspaceFileRequest {
+  /** Session whose workspace resolves a relative path; present for provenance. */
+  readonly sessionId: SessionId
+  /** Path in Host filesystem syntax after best-effort Session workspace resolution. */
+  readonly path: string
+  /** Delivery form the caller renders; selects cap and response kind. */
+  readonly as: SessionReadWorkspaceFileAs
+}
+
+/** Text workspace-file read value. */
+export interface SessionReadWorkspaceTextValue {
+  readonly kind: 'text'
+  /** File bytes decoded as UTF-8, possibly a prefix of the whole file. */
+  readonly text: string
+  /** Whole-file size in bytes. */
+  readonly byteSize: number
+  /** Whether `text` stops at the configured text cap. */
+  readonly truncated: boolean
+}
+
+/** Binary workspace-file read value. */
+export interface SessionReadWorkspaceBytesValue {
+  readonly kind: 'bytes'
+  /** Extension-derived media type; `application/octet-stream` when unknown. */
+  readonly mediaType: string
+  /** Whole file encoded as base64; rejected above the configured byte cap. */
+  readonly data: string
+  /** Whole-file size in bytes. */
+  readonly byteSize: number
+}
+
+/** Workspace-file read value: exactly one delivery form. */
+export type SessionReadWorkspaceFileValue =
+  | SessionReadWorkspaceTextValue
+  | SessionReadWorkspaceBytesValue
 
 /** Client-minted prompt identity used to reconcile optimistic and durable messages. */
 export type SessionRequestId = Branded<'session-request-id'>

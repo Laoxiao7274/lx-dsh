@@ -1,0 +1,320 @@
+/* Artifact-preview side panel: fixed right, true split via body padding the
+ * apply layer owns. Media stages are dark (same family as the row cards);
+ * text views scroll inside the panel body. */
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 460px;
+  max-width: 85vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
+  box-shadow: -10px 0 28px rgba(15, 17, 21, 0.14);
+  z-index: 60;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  flex: none;
+}
+
+.title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconButton {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.iconButton:disabled:hover {
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 鈹€鈹€ tab strip 鈹€鈹€ */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  overflow-x: auto;
+  flex: none;
+  scrollbar-width: thin;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px 0 5px;
+  border: 0.5px solid transparent;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  user-select: none;
+  flex: none;
+  transition: background 160ms ease;
+}
+
+.tab:hover {
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.tabActive {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  border-color: var(--dsw-alias-border-l1) var(--dsw-alias-border-l1) var(--dsw-alias-bg-base);
+  margin-bottom: -0.5px;
+  font-weight: 500;
+}
+
+.tabKind {
+  flex: none;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 9px;
+  line-height: 16px;
+}
+
+.tabName {
+  max-width: 130px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--ds-font-family-code, Consolas, monospace);
+  font-size: 11px;
+}
+
+.tabClose {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.tabClose:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 鈹€鈹€ body 鈹€鈹€ */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.imageStage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: repeating-conic-gradient(var(--dsw-alias-bg-layer-1) 0% 25%, var(--dsw-alias-bg-base) 0% 50%) 0 0 / 16px 16px;
+}
+
+.image {
+  max-width: 100%;
+  max-height: 100%;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.mediaStage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgb(12, 13, 16);
+}
+
+.video {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+}
+
+.audio {
+  width: 78%;
+}
+
+.audioGlyph {
+  color: rgb(112, 118, 126);
+}
+
+.frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: var(--dsw-alias-bg-base);
+}
+
+.csvTable {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.csvTable th,
+.csvTable td {
+  padding: 6px 9px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  text-align: left;
+}
+
+.csvTable th {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10.5px;
+}
+
+/* 鈹€鈹€ states 鈹€鈹€ */
+.state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 28px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.stateTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.stateBody {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  line-height: 1.7;
+  max-width: 34ch;
+}
+
+.stateMeta {
+  font-family: var(--ds-font-family-code, Consolas, monospace);
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary);
+  max-width: 40ch;
+  overflow-wrap: anywhere;
+}
+
+.stateRow {
+  display: flex;
+  gap: 8px;
+}
+
+.secondaryButton {
+  height: 28px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-base);
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.secondaryButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+}
+
+.skeleton i {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-skeleton);
+}
+
+.skeletonTitle {
+  height: 20px;
+  width: 55%;
+}
+
+.skeletonWide {
+  width: 92%;
+}
+
+.skeletonMid {
+  width: 78%;
+}
+
+/* 鈹€鈹€ status 鈹€鈹€ */
+.status {
+  flex: none;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+  padding: 6px 10px;
+  font-size: 10.5px;
+  font-family: var(--ds-font-family-code, Consolas, monospace);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .iconButton,
+  .tabClose,
+  .secondaryButton {
+    transition: none;
+  }
+}
