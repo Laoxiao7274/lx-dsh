@@ -1,11 +1,16 @@
 /**
- * Quick-answers drawer: a right-anchored slide-in panel hosting a compact
+ * Quick-answers drawer: a left-anchored collapsible panel hosting a compact
  * ask-and-answer exchange against the quick-answers preset session. It rides
  * the shell overlay layer; the main conversation column and the current
  * session stay untouched (the quick session is never staged as current).
  * Answers render through the shared MarkdownText pipeline and reasoning
  * rides the same Think disclosure row the chat uses, so the drawer keeps
  * the chat's presentation (thinking, tool activity, markdown typography).
+ *
+ * The panel stays mounted in both states: the edge handle on the panel's
+ * right side toggles collapse, and a collapsed panel slides off-screen
+ * leaving the handle docked at the left edge (scroll and draft state
+ * survive; the body leaves the accessibility tree while collapsed).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
@@ -35,7 +40,7 @@ export type LxQuickDrawerProps = PropsRuntime<'shell.overlay'>
  * Render the quick-answers drawer.
  * @param props - slot runtime share, the drawer store, the locale seat, and
  *   the ask/reset writes.
- * @returns the drawer, or nothing while closed.
+ * @returns the drawer shell (panel + collapse handle), always mounted.
  */
 export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawerProps): ReactNode {
   const state = useStore(s => s)
@@ -66,8 +71,6 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
     }
   }, [state.turns])
 
-  if (!state.open) return null
-
   const submit = (): void => {
     const input = inputRef.current
     if (input === null) return
@@ -78,52 +81,58 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
   }
 
   return (
-    <div className={css.drawer} role="complementary" aria-label={t('quick.label')}>
-      <div className={css.header}>
-        <IconBoltOutline16 size={16} className={css.icon} />
-        <span className={css.title}>{t('quick.label')}</span>
-        <button
-          type="button" className={css.reset} aria-label={t('quick.reset')}
-          title={t('quick.reset')} onClick={() => { reset() }}
-        >
-          <IconRefreshOutline14 size={14} />
-          <span className={css.resetLabel}>{t('quick.reset')}</span>
-        </button>
-        <button
-          type="button" className={css.close} aria-label={t('quick.close')} title={t('quick.close')}
-          onClick={() => { actions.close() }}
-        >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
+    <div className={css.shell} data-open={state.open || undefined}>
+      <div
+        className={css.drawer} role="complementary" aria-label={t('quick.label')}
+      >
+        <div className={css.header}>
+          <IconBoltOutline16 size={16} className={css.icon} />
+          <span className={css.title}>{t('quick.label')}</span>
+          <button
+            type="button" className={css.reset} aria-label={t('quick.reset')}
+            title={t('quick.reset')} onClick={() => { reset() }}
+          >
+            <IconRefreshOutline14 size={14} />
+            <span className={css.resetLabel}>{t('quick.reset')}</span>
+          </button>
+        </div>
+        <div className={css.list} ref={listRef}>
+          {state.error !== undefined
+            ? <div className={css.error} role="alert">{state.error}</div>
+            : state.turns.length === 0
+              ? <div className={css.empty}>{t('quick.empty')}</div>
+              : state.turns.map(turn => <QuickTurnRow key={turn.id} turn={turn} labels={labels} t={t} />)}
+        </div>
+        <div className={css.composer}>
+          <textarea
+            ref={inputRef}
+            className={css.input}
+            rows={2}
+            placeholder={t('quick.placeholder')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                submit()
+              }
+            }}
+          />
+          <button type="button" className={css.send} aria-label={t('quick.send')} onClick={submit}>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+              <path d="M2 8l12-6-4 6 4 6z" fill="currentColor" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <div className={css.list} ref={listRef}>
-        {state.error !== undefined
-          ? <div className={css.error} role="alert">{state.error}</div>
-          : state.turns.length === 0
-            ? <div className={css.empty}>{t('quick.empty')}</div>
-            : state.turns.map(turn => <QuickTurnRow key={turn.id} turn={turn} labels={labels} t={t} />)}
-      </div>
-      <div className={css.composer}>
-        <textarea
-          ref={inputRef}
-          className={css.input}
-          rows={2}
-          placeholder={t('quick.placeholder')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              submit()
-            }
-          }}
-        />
-        <button type="button" className={css.send} aria-label={t('quick.send')} onClick={submit}>
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-            <path d="M2 8l12-6-4 6 4 6z" fill="currentColor" />
-          </svg>
-        </button>
-      </div>
+      <button
+        type="button" className={css.handle} aria-label={t('quick.label')}
+        aria-expanded={state.open} title={t('quick.label')} onClick={() => { actions.toggle() }}
+      >
+        <IconBoltOutline16 size={16} className={css.handleIcon} />
+        <span className={css.handleLabel}>{t('quick.label')}</span>
+        <svg className={css.handleChevron} viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+          <path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
     </div>
   )
 }

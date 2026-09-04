@@ -1,21 +1,48 @@
-/* Quick-answers drawer: right-anchored slide-in panel over the conversation
- * column. Fixed width, full height below any app inset; the overlay layer's
- * pointer-events pass-through keeps the rest of the shell interactive. */
+/* Quick-answers drawer: a left-anchored collapsible panel over the sidebar
+ * edge of the shell. The shell (panel + edge handle) stays mounted in both
+ * states; a collapsed panel slides off-screen leaving the handle docked at
+ * the left edge, so scroll and draft state survive the collapse. The overlay
+ * layer's pointer-events pass-through keeps the rest of the shell
+ * interactive. */
 
-.drawer {
+.shell {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   bottom: 0;
   z-index: 20;
+  display: flex;
+  /* Collapsed: slide the panel off-screen, keeping the handle (28px) docked
+   * at the left edge. Attribute-driven: [data-open] expands, its absence
+   * collapses. */
+  transform: translateX(calc(-100% + 28px));
+  transition: transform 240ms ease;
+}
+
+.shell[data-open] {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell {
+    transition: none;
+  }
+}
+
+.drawer {
   display: flex;
   flex-direction: column;
   width: min(420px, 90vw);
   padding-top: var(--dsh-app-inset-top, 0px);
   box-sizing: border-box;
-  border-radius: 16px 0 0 16px;
+  border-radius: 0 16px 16px 0;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
+  /* Collapsed (off-screen) body leaves the accessibility tree and stops
+   * taking focus: visibility flips after the slide-out finishes (240ms) and
+   * restores instantly on expand. */
+  transition: visibility 0s linear 240ms;
+  visibility: hidden;
   /* The drawer overlays the Session Header's window-drag strip: Chromium's
    * app-region hit-test keeps a `drag` region painted underneath an overlay
    * that does not declare itself, so the drawer opts out explicitly or its
@@ -26,17 +53,64 @@
      the scrolling .list child. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  animation: quick-drawer-in 180ms ease;
 }
 
-@keyframes quick-drawer-in {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+.shell[data-open] .drawer {
+  transition: visibility 0s;
+  visibility: visible;
+}
+
+/* The collapse handle rides the panel's right edge and stays visible in both
+ * states (docked tab while collapsed). Vertical layout: icon, label, chevron
+ * pointing toward the collapsed direction. */
+.handle {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 28px;
+  padding: 14px 0 12px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0 16px 16px 0;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv3);
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  cursor: pointer;
+  /* Same drag-strip opt-out as the panel body. */
+  -webkit-app-region: no-drag;
+}
+
+.handle:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.handleLabel {
+  flex: 1;
+  writing-mode: vertical-rl;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 2px;
+}
+
+.handleChevron {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 240ms ease;
+}
+
+.shell[data-open] .handleChevron {
+  transform: rotate(180deg);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer {
-    animation: none;
+  .handleChevron {
+    transition: none;
   }
 }
 
@@ -67,8 +141,7 @@
   line-height: 22px;
 }
 
-.reset,
-.close {
+.reset {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -85,15 +158,9 @@
   cursor: pointer;
 }
 
-.reset:hover,
-.close:hover {
+.reset:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
-}
-
-.close {
-  width: 28px;
-  padding: 0;
 }
 
 .list {
@@ -320,7 +387,7 @@
 
 .send:focus-visible,
 .reset:focus-visible,
-.close:focus-visible {
+.handle:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 2px;
 }

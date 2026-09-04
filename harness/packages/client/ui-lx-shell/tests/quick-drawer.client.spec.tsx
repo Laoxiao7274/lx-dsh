@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** LxQuickDrawer: the right-side quick-answers panel — open state, ask, reset. */
+/** LxQuickDrawer: the left-anchored collapsible quick-answers panel — handle toggle, ask, reset. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LxQuickDrawer, type LxQuickDrawerProps } from '../src/client/LxQuickDrawer.tsx'
@@ -33,7 +33,7 @@ function mountDrawer(store: StoreInstance, turns?: ReturnType<typeof store.getSn
 }
 
 describe('LxQuickDrawer', () => {
-  it('renders nothing while closed', () => {
+  it('stays mounted while collapsed and reports the collapsed state', () => {
     const store = mountInstance()
     const props = {
       ask: vi.fn(), reset: vi.fn(),
@@ -41,11 +41,22 @@ describe('LxQuickDrawer', () => {
       actions: store.actions,
       t: (key: string) => COPY[key as LxShellKey] ?? key,
     } as unknown as LxQuickDrawerProps
-    const { container } = render(<LxQuickDrawer {...props} />)
-    expect(container.firstChild).toBeNull()
+    render(<LxQuickDrawer {...props} />)
+    // The collapse handle reports the collapsed state; the panel body stays
+    // mounted (scroll and draft state survive collapse — only the CSS hides
+    // it, which jsdom does not load, so the structural contract is asserted
+    // here and the browser smoke owns the visual collapse). The stubbed
+    // useStore does not subscribe, so post-click state is asserted on the
+    // store, not on a re-render that never happens.
+    const handle = screen.getByRole('button', { name: en['quick.label'] })
+    expect(handle.getAttribute('aria-expanded')).toBe('false')
+    expect(handle.hasAttribute('disabled')).toBe(false)
+    expect(screen.getByRole('complementary')).toBeTruthy()
+    fireEvent.click(handle)
+    expect(store.getSnapshot().open).toBe(true)
   })
 
-  it('shows the empty hint and sends a typed question on Enter', () => {
+  it('expands through the handle and sends a typed question on Enter', () => {
     const store = mountInstance()
     store.actions.open()
     const { ask } = mountDrawer(store)
@@ -84,12 +95,16 @@ describe('LxQuickDrawer', () => {
     expect(screen.getByText('web_search')).toBeTruthy()
   })
 
-  it('close and reset dispatch their actions', () => {
+  it('the handle toggles collapse and reset dispatches its action', () => {
     const store = mountInstance()
     store.actions.open()
     const { reset } = mountDrawer(store)
-    fireEvent.click(screen.getByRole('button', { name: en['quick.close'] }))
+    const handle = screen.getByRole('button', { name: en['quick.label'] })
+    expect(handle.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(handle)
     expect(store.getSnapshot().open).toBe(false)
+    fireEvent.click(handle)
+    expect(store.getSnapshot().open).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: en['quick.reset'] }))
     expect(reset).toHaveBeenCalledExactlyOnceWith()
   })
