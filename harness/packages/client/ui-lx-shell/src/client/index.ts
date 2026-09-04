@@ -384,12 +384,17 @@ export function apply(ctx: ClientContext): void {
   /** The bucket the open panel is showing (apply-side mirror of the store). */
   let todoKey = ''
 
+  /** Refresh the per-bucket open counts (the badges' data source). */
+  const ensureCounts = (): void => {
+    void todos.counts().then(counts => { todoBound?.setCounts(counts.counts) })
+      .catch(() => { /* the badge keeps the last good counts */ })
+  }
+
   /** Replace the mirrored list and refresh the badge counts. */
   const todoSync = (reply: { items: TodoItem[] }): void => {
     todoBound?.setLoading(false)
     todoBound?.setItems(reply.items)
-    void todos.counts().then(counts => { todoBound?.setCounts(counts.counts) })
-      .catch(() => { /* the badge keeps the last good counts */ })
+    ensureCounts()
   }
 
   /** Load the shown bucket once per opening panel. */
@@ -411,6 +416,9 @@ export function apply(ctx: ClientContext): void {
     actions: BoundActions<typeof todoStore>,
   ): { open: (anchor: TodoAnchor, workspace: TodoWorkspaceContext) => void } => {
     todoBound = actions
+    // Bind-time catch-up: the tree row's badges need the counts before any
+    // panel opens (the first mount pulls them once).
+    ensureCounts()
     return {
       open: (anchor, workspace) => {
         todoKey = workspace.key
