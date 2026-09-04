@@ -1,7 +1,7 @@
 /**
  * LX-DSH user-todos footer action: the sidebar-foot entry that opens the
- * todos panel (the rail fallback — the tree row hides on the rail). Wide
- * renders the labelled row; the collapsed rail renders the icon circle.
+ * todos panel (the rail fallback — the per-group row hides on the rail).
+ * Wide renders the labelled row; the collapsed rail renders the icon circle.
  * The badge sums the open items across every workspace bucket; the panel
  * opens for the CURRENT session's workspace.
  */
@@ -10,15 +10,53 @@ import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-cli
 import type { SidebarFooterActionOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import css from './LxTodosEntry.module.css'
 import type { TodoAnchor } from './todo-store.ts'
-import { currentTodoWorkspace, totalOpenCount, type TodoWorkspaceContext } from './LxTodosTreeRow.tsx'
 import type { createTodoPanelStore } from './todo-store.ts'
+
+/** Minimal sessions projection the workspace derivation reads. */
+interface SessionsProjection {
+  readonly current: string | undefined
+}
+
+/** Minimal workspaces projection the workspace derivation reads. */
+interface WorkspaceProjection {
+  readonly workspaceId: string | undefined
+  readonly sessionIds: readonly string[]
+  readonly title: string
+}
+
+/**
+ * Derive the workspace context of the current session: the bucket whose
+ * workspace owns the current session, or the no-workspace default.
+ * @param sessions - the sessions projection (current session id).
+ * @param workspaces - the workspaces projection (owner + session ids).
+ * @returns the bucket key and display title.
+ */
+export function currentTodoWorkspace(
+  sessions: SessionsProjection,
+  workspaces: readonly WorkspaceProjection[],
+): { key: string; title: string | undefined } {
+  const current = sessions.current
+  if (current !== undefined) {
+    const owner = workspaces.find(workspace => workspace.workspaceId !== undefined
+      && workspace.sessionIds.includes(current))
+    if (owner !== undefined) return { key: owner.workspaceId as string, title: owner.title }
+  }
+  return { key: '', title: undefined }
+}
+
+/** Sum the per-bucket open counts (the rail badge). */
+export function totalOpenCount(counts: Readonly<Record<string, number>>): number {
+  let total = 0
+  for (const value of Object.values(counts)) total += value
+  return total
+}
 
 /** Full props of the user-todos footer action occupant. */
 export type LxTodosEntryProps = PropsRuntime<'sidebar.footer.action'>
   & SidebarFooterActionOwnerProps & PropsStore<ReturnType<typeof createTodoPanelStore>>
   & PropsLocale<'settings.lxShell'> & {
     /** Open the panel for the current workspace, anchored to this entry. */
-    open: (anchor: TodoAnchor, workspace: TodoWorkspaceContext) => void
+    open: (anchor: TodoAnchor, workspace: { key: string; title: string | undefined }) => void
   }
 
 /**

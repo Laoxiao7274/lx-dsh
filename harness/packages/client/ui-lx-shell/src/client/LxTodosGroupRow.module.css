@@ -1,0 +1,53 @@
+/* User-todos group row: the first child of a workspace group, sitting
+ * beside the group's sessions. Mirrors the session-row rhythm (compact,
+ * indented under the group header) with a todo glyph and count pill. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  margin: 2px 0;
+  padding: 0 8px 0 26px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--dsw-alias-label-primary);
+}
+
+.row:hover,
+.row[aria-selected] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.iconSlot {
+  flex: none;
+  display: inline-flex;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  line-height: 19px;
+}
+
+.count {
+  flex: none;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+}

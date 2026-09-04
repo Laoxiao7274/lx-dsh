@@ -36,8 +36,8 @@ import { LxBrandMark, LxBrandName, LxHeroBrandMark } from './LxBrand.tsx'
 import { LxQuickButton } from './LxQuickButton.tsx'
 import { LxQuickDrawer } from './LxQuickDrawer.tsx'
 import { LxTodosEntry } from './LxTodosEntry.tsx'
+import { LxTodosGroupRow } from './LxTodosGroupRow.tsx'
 import { LxTodosPanel } from './LxTodosPanel.tsx'
-import { LxTodosTreeRow, type TodoWorkspaceContext } from './LxTodosTreeRow.tsx'
 import { LxUpdaterRow, type UpdaterRowInjected } from './LxUpdaterRow.tsx'
 import { createQuickDrawerStore } from './quick-store.ts'
 import { createTodoPanelStore, type TodoAnchor, type TodoItem } from './todo-store.ts'
@@ -53,7 +53,8 @@ export type { LxQuickButtonProps } from './LxQuickButton.tsx'
 export type { LxQuickDrawerProps, LxQuickDrawerInjected } from './LxQuickDrawer.tsx'
 export type { QuickDrawerState, QuickDrawerActions, QuickTurn } from './quick-store.ts'
 export type { LxTodosEntryProps } from './LxTodosEntry.tsx'
-export type { LxTodosPanelProps, LxTodosPanelInjected, TodoAnchorRect } from './LxTodosPanel.tsx'
+export type { LxTodosGroupRowProps } from './LxTodosGroupRow.tsx'
+export type { LxTodosPanelProps, LxTodosPanelInjected } from './LxTodosPanel.tsx'
 export type { TodoPanelState, TodoPanelActions } from './todo-store.ts'
 export type { LxUpdateButtonProps, LxUpdateButtonInjected } from './LxUpdateButton.tsx'
 export type { LxShellKey } from './locales.ts'
@@ -414,7 +415,7 @@ export function apply(ctx: ClientContext): void {
   /** Bind the store actions and hand both entries the same open write. */
   const injectedTodosEntry = (
     actions: BoundActions<typeof todoStore>,
-  ): { open: (anchor: TodoAnchor, workspace: TodoWorkspaceContext) => void } => {
+  ): { open: (anchor: TodoAnchor, workspace: { key: string; title: string | undefined }) => void } => {
     todoBound = actions
     // Bind-time catch-up: the tree row's badges need the counts before any
     // panel opens (the first mount pulls them once).
@@ -428,13 +429,13 @@ export function apply(ctx: ClientContext): void {
     }
   }
 
-  ctx.slots.inject('sidebar.workspaces.leading', () => ctx.slots.register({
-    name: 'sidebar.workspaces.leading',
+  ctx.slots.inject('sidebar.workspaces.groupRow', () => ctx.slots.register({
+    name: 'sidebar.workspaces.groupRow',
     id: 'lx-user-todos-row',
     store: todoStore,
     locale: SETTINGS_NS,
     inject: injectedTodosEntry,
-  }, LxTodosTreeRow))
+  }, LxTodosGroupRow))
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'lx-user-todos',

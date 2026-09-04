@@ -264,6 +264,8 @@ type SessionTreeProps = Pick<
   orderBy: SessionOrderBy
   /** Row rendered at the top of the tree, above every workspace group. */
   leading?: ReactNode
+  /** Row rendered as the first child of every expanded group (owner share in). */
+  groupRow?: (owner: { workspaceId: string | undefined; title: string }) => ReactNode
 }
 
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
@@ -274,6 +276,7 @@ function SessionTree({
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
   leading,
+  groupRow,
 }: SessionTreeProps) {
   const list = useSessions(s => s)
   const pendingInteractions = useSessionPendingInteraction(s => s)
@@ -531,6 +534,8 @@ function SessionTree({
                     },
                   }}
               />
+              {(group.expanded || sessionsExpanded) && groupRow !== undefined
+                && groupRow({ workspaceId: group.workspaceId, title: group.label })}
               {(sessionsExpanded
                 ? group.sessions
                 : collapsed.rows
@@ -1259,6 +1264,7 @@ export function WorkspaceBrowser({
                 home={home}
                 t={t}
                 leading={renderSlot('sidebar.workspaces.leading', {})}
+                groupRow={owner => renderSlot('sidebar.workspaces.groupRow', owner)}
                 onRenameRequest={(workspaceId, currentTitle) => {
                   setRenameTarget({ workspaceId, currentTitle })
                   setRenameDraft(currentTitle)

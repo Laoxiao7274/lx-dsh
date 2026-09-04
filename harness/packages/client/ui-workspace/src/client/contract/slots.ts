@@ -51,8 +51,18 @@ export interface DirectoryFlowOwnerProps {
   onError: (message: string) => void
 }
 
+/** Owner share of the per-workspace group row: which group the row renders in. */
+export interface WorkspaceGroupRowOwnerProps {
+  /** The owning workspace's id; undefined for the ungrouped bucket. */
+  workspaceId: WorkspaceId | undefined
+  /** The group's display title. */
+  title: string
+}
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /** Row rendered as the first child of every workspace group (expanded groups only). */
+    'sidebar.workspaces.groupRow': { kind: 'single'; scope: 'root'; owner: WorkspaceGroupRowOwnerProps }
     /** Leading row the browsing region renders at the top of its tree, above every workspace group (wide column only). */
     'sidebar.workspaces.leading': { kind: 'single'; scope: 'root' }
     /** Directory-flow hole under the conversation empty-state picker (declared by the WorkspacePicker entry). */
@@ -149,7 +159,7 @@ export type WorkspaceBrowserInjected = {
 /** Full browser props: shell owner share + viewing store + injected actions + the locale seat. */
 export type WorkspaceBrowserProps =
   PropsRuntime<'sidebar.workspaces'>
-  & PropsRenderSlots<'sidebar.workspaces.leading' | 'sidebar.workspaces.directoryFlow'>
+  & PropsRenderSlots<'sidebar.workspaces.leading' | 'sidebar.workspaces.groupRow' | 'sidebar.workspaces.directoryFlow'>
   & PropsStore<ReturnType<typeof createWorkspaceViewStore>>
   & Omit<WorkspaceBrowserInjected, 'hooks'>
   & PropsHooks<WorkspaceBrowserInjected['hooks']>
