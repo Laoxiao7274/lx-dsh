@@ -27,9 +27,10 @@ const TAB_BIN: ArtifactTab = { sessionId: 's1' as never, path: '/w/i.ckpt', name
 function mountPanel(
   store: StoreInstance,
   injected: Partial<Pick<ArtifactPanelProps,
-    'reload' | 'openExternal' | 'copyPath' | 'locateFolder' | 'markdownLabels'>> = {},
+    'expand' | 'reload' | 'openExternal' | 'copyPath' | 'locateFolder' | 'markdownLabels'>> = {},
 ) {
   const props = {
+    expand: vi.fn(),
     reload: vi.fn(),
     openExternal: vi.fn(),
     copyPath: vi.fn(),
@@ -44,20 +45,24 @@ function mountPanel(
 }
 
 describe('ArtifactPanel', () => {
-  it('renders nothing while closed', () => {
+  it('renders the collapsed edge grip instead of nothing after a collapse', () => {
     const store = createArtifactPanelStore().create()
-    const { container } = render(
-      <ArtifactPanel
-        {...{
-          useStore: (selector: (s: ArtifactPanelState) => unknown) => selector(store.getSnapshot()),
-          actions: store.actions,
-          t: (key: string) => COPY[key as ArtifactPreviewKey] ?? key,
-          reload: vi.fn(), openExternal: vi.fn(), copyPath: vi.fn(), locateFolder: vi.fn(),
-          markdownLabels: (t: (key: string) => string) => ({ code: { copyLabel: t('view.copy'), copiedLabel: t('view.copied') }, footnotes: t('view.footnotes') }),
-        } as unknown as ArtifactPanelProps}
-      />,
-    )
-    expect(container.firstChild).toBeNull()
+    store.actions.openTab(TAB_MD)
+    store.actions.collapsePanel()
+    const expand = vi.fn()
+    const props = {
+      expand,
+      reload: vi.fn(), openExternal: vi.fn(), copyPath: vi.fn(), locateFolder: vi.fn(),
+      markdownLabels: (t: (key: string) => string) => ({ code: { copyLabel: t('view.copy'), copiedLabel: t('view.copied') }, footnotes: t('view.footnotes') }),
+      useStore: (selector: (s: ArtifactPanelState) => unknown) => selector(store.getSnapshot()),
+      actions: store.actions,
+      t: (key: string) => COPY[key as ArtifactPreviewKey] ?? key,
+    } as unknown as ArtifactPanelProps
+    render(<ArtifactPanel {...props} />)
+    const grip = screen.getByRole('button', { name: en['panel.expand'] })
+    expect(grip.textContent).toContain(en['panel.grip'])
+    fireEvent.click(grip)
+    expect(expand).toHaveBeenCalledExactlyOnceWith()
   })
 
   it('shows the empty state with the panel open and no tabs', () => {

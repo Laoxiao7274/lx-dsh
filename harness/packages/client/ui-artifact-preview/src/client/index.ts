@@ -42,6 +42,17 @@ export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.session'
 type PanelActions = BoundActions<ReturnType<typeof createArtifactPanelStore>>
 
 /**
+ * The side-panel mutex event: each right-anchored panel announces its own
+ * expansion and collapses when another announces one. A window-level
+ * convention (no cross-package state) — the grip stays clickable even when
+ * an announcement is lost, so the fallback is always manual.
+ */
+const SIDE_PANEL_EVENT = 'lx-side-panel'
+
+/** Side-panel owners that join the mutex. */
+type SidePanelOwner = 'artifact-preview' | 'lx-quick'
+
+/**
  * Client plugin body: register the dictionaries, the turn-tail row, and the
  * overlay preview panel.
  * @param ctx - client root context.
@@ -127,12 +138,33 @@ export function apply(ctx: ClientContext): void {
       kind: artifactKind(resolved),
     }
     bound?.openTab(tab)
+    announceExpanded()
     const key = artifactTabKey(tab.sessionId, tab.path)
     if (!started.has(key)) {
       started.add(key)
       readTab(tab)
     }
   }
+
+  /** Announce this panel's expansion to the other side panels. */
+  const announceExpanded = (): void => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent(SIDE_PANEL_EVENT, {
+      detail: { owner: 'artifact-preview', expanded: true },
+    }))
+  }
+
+  /** Collapse when another side panel announces an expansion. */
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    const onOther = (event: Event): void => {
+      const detail = (event as CustomEvent<{ owner: SidePanelOwner, expanded: boolean }>).detail
+      if (detail?.owner === 'artifact-preview') return
+      if (detail?.expanded === true) bound?.collapsePanel()
+    }
+    window.addEventListener(SIDE_PANEL_EVENT, onOther)
+    return () => { window.removeEventListener(SIDE_PANEL_EVENT, onOther) }
+  }, 'ui-artifact-preview: side panel mutex')
 
   ctx.effect(() => () => {
     for (const url of Object.values(thumbnails.getSnapshot())) URL.revokeObjectURL(url)
@@ -168,6 +200,10 @@ export function apply(ctx: ClientContext): void {
     inject: (actions): ArtifactPanelInjected => {
       bound = actions
       return {
+        expand: () => {
+          actions.expandPanel()
+          announceExpanded()
+        },
         reload: (tab) => { readTab(tab) },
         openExternal: (tab) => {
           void ctx.remote.session.openWorkspacePath({ path: tab.path })

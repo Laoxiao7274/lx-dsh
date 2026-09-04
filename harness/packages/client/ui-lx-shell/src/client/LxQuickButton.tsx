@@ -25,15 +25,15 @@ export type LxQuickButtonProps = PropsRuntime<'sidebar.footer.action'>
  * @returns the footer button.
  */
 export function LxQuickButton({ useStore, toggle, wide, t }: LxQuickButtonProps): ReactNode {
-  const open = useStore(s => s.open)
+  const expanded = useStore(s => s.mode === 'expanded')
   return (
     <button
       type="button"
       className={wide ? css.quick : `${css.quick} ${css.rail}`}
       aria-label={t('quick.title')}
-      aria-pressed={open}
+      aria-pressed={expanded}
       title={t('quick.title')}
-      onClick={() => { toggle(!open) }}
+      onClick={() => { toggle(!expanded) }}
     >
       <IconBoltOutline16 size={16} className={css.icon} />
       {wide ? <span className={css.label}>{t('quick.label')}</span> : null}

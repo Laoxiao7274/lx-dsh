@@ -323,12 +323,39 @@ export function apply(ctx: ClientContext): void {
       // The target state arrives from the component (it owns the open read),
       // so expanding is the only path that lazily creates the session.
       toggle: (open) => {
-        if (open) actions.open()
-        else actions.close()
-        if (open) ensureQuickSession()
+        if (open) {
+          actions.expand()
+          announceQuickExpanded()
+          ensureQuickSession()
+        }
+        else actions.collapse()
       },
     }
   }
+
+  /**
+   * The side-panel mutex event: each right-anchored panel announces its own
+   * expansion and collapses when another announces one (see the artifact
+   * preview package's twin handler — a window-level convention, no
+   * cross-package state).
+   */
+  const QUICK_SIDE_PANEL_EVENT = 'lx-side-panel'
+  const announceQuickExpanded = (): void => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent(QUICK_SIDE_PANEL_EVENT, {
+      detail: { owner: 'lx-quick', expanded: true },
+    }))
+  }
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    const onOther = (event: Event): void => {
+      const detail = (event as CustomEvent<{ owner: string, expanded: boolean }>).detail
+      if (detail?.owner === 'lx-quick') return
+      if (detail?.expanded === true) quickBound?.collapse()
+    }
+    window.addEventListener(QUICK_SIDE_PANEL_EVENT, onOther)
+    return () => { window.removeEventListener(QUICK_SIDE_PANEL_EVENT, onOther) }
+  }, 'ui-lx-shell: quick drawer side panel mutex')
 
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
@@ -342,7 +369,7 @@ export function apply(ctx: ClientContext): void {
     id: 'lx-quick-drawer',
     store: quickStore,
     locale: SETTINGS_NS,
-    inject: (): { ask: (text: string) => void, reset: () => void } => ({
+    inject: (): { ask: (text: string) => void, reset: () => void, expand: () => void } => ({
       ask: (text) => {
         const binding = quickSession()
         if (binding === undefined) return
@@ -353,6 +380,10 @@ export function apply(ctx: ClientContext): void {
           .catch((error: unknown) => { quickBound?.setError(String((error as Error)?.message ?? error)) })
       },
       reset: resetQuickSession,
+      expand: () => {
+        quickBound?.expand()
+        announceQuickExpanded()
+      },
     }),
   }, LxQuickDrawer))
   ctx.slots.inject('sidebar.brand.name', () => ctx.slots.register({

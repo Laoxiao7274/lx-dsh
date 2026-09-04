@@ -30,10 +30,13 @@ export interface QuickTurn {
   running: boolean
 }
 
+/** The drawer's presentation mode: never opened, expanded, or the edge grip. */
+export type QuickDrawerMode = 'closed' | 'expanded' | 'collapsed'
+
 /** Render-facing quick-answers drawer state. */
 export interface QuickDrawerState {
-  /** Whether the drawer is expanded. */
-  open: boolean
+  /** Drawer presentation: closed hides everything; collapsed shows the grip. */
+  mode: QuickDrawerMode
   /** The quick session; undefined until the first open creates one. */
   sessionId: SessionId | undefined
   /** Exchange turns in order. */
@@ -44,8 +47,13 @@ export interface QuickDrawerState {
 
 /** Declared action shape giving the exported factory a stable return type. */
 export type QuickDrawerActions = {
-  open: (draft: QuickDrawerState) => void
+  /** Expand the drawer (an entry click or the collapsed grip). */
+  expand: (draft: QuickDrawerState) => void
+  /** Collapse to the edge grip (keeps the session and turns). */
+  collapse: (draft: QuickDrawerState) => void
+  /** Hide entirely (kept for the close affordance the shell may offer). */
   close: (draft: QuickDrawerState) => void
+  /** Expand when collapsed, collapse when expanded. */
   toggle: (draft: QuickDrawerState) => void
   /** Bind a newly created quick session (apply body calls this after create). */
   bindSession: (draft: QuickDrawerState, id: SessionId) => void
@@ -63,11 +71,16 @@ export type QuickDrawerActions = {
  */
 export function createQuickDrawerStore(): EngineStoreHandle<QuickDrawerState, QuickDrawerActions> {
   return defineStore({
-    init: (): QuickDrawerState => ({ open: false, sessionId: undefined, turns: [], error: undefined }),
+    init: (): QuickDrawerState => ({ mode: 'closed', sessionId: undefined, turns: [], error: undefined }),
     actions: {
-      open: (d) => { d.open = true },
-      close: (d) => { d.open = false },
-      toggle: (d) => { d.open = !d.open },
+      expand: (d) => { d.mode = 'expanded' },
+      collapse: (d) => {
+        if (d.mode !== 'closed') d.mode = 'collapsed'
+      },
+      close: (d) => { d.mode = 'closed' },
+      toggle: (d) => {
+        d.mode = d.mode === 'expanded' ? 'collapsed' : 'expanded'
+      },
       bindSession: (d, id) => {
         d.sessionId = id
         d.turns = []

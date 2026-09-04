@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** LxQuickDrawer: the right-side quick-answers panel — open state, ask, reset. */
+/** LxQuickDrawer: the right-side quick-answers panel — modes, ask, reset, grip. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LxQuickDrawer, type LxQuickDrawerProps } from '../src/client/LxQuickDrawer.tsx'
@@ -20,23 +20,25 @@ function mountInstance(): StoreInstance {
 function mountDrawer(store: StoreInstance, turns?: ReturnType<typeof store.getSnapshot>['turns']) {
   const ask = vi.fn()
   const reset = vi.fn()
+  const expand = vi.fn()
   if (turns !== undefined) store.actions.setTurns(turns)
   const props = {
     ask,
     reset,
+    expand,
     useStore: (selector: (s: QuickDrawerState) => unknown) => selector(store.getSnapshot()),
     actions: store.actions,
     t: (key: string) => COPY[key as LxShellKey] ?? key,
   } as unknown as LxQuickDrawerProps
   render(<LxQuickDrawer {...props} />)
-  return { ask, reset }
+  return { ask, reset, expand }
 }
 
 describe('LxQuickDrawer', () => {
   it('renders nothing while closed', () => {
     const store = mountInstance()
     const props = {
-      ask: vi.fn(), reset: vi.fn(),
+      ask: vi.fn(), reset: vi.fn(), expand: vi.fn(),
       useStore: (selector: (s: QuickDrawerState) => unknown) => selector(store.getSnapshot()),
       actions: store.actions,
       t: (key: string) => COPY[key as LxShellKey] ?? key,
@@ -47,7 +49,7 @@ describe('LxQuickDrawer', () => {
 
   it('shows the empty hint and sends a typed question on Enter', () => {
     const store = mountInstance()
-    store.actions.open()
+    store.actions.expand()
     const { ask } = mountDrawer(store)
     expect(screen.getByText(en['quick.empty'])).toBeTruthy()
     const input = screen.getByRole('textbox') as HTMLTextAreaElement
@@ -59,7 +61,7 @@ describe('LxQuickDrawer', () => {
 
   it('Enter with shift does not send; blank input does not send', () => {
     const store = mountInstance()
-    store.actions.open()
+    store.actions.expand()
     const { ask } = mountDrawer(store)
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: '多行' } })
@@ -72,7 +74,7 @@ describe('LxQuickDrawer', () => {
 
   it('renders turns with reasoning, tools, and errors', () => {
     const store = mountInstance()
-    store.actions.open()
+    store.actions.expand()
     mountDrawer(store, [
       { id: 'q1', question: 'a?', reasoning: '想一想', answer: 'answer one', tools: [{ name: 'web_search' }], running: false },
       { id: 'q2', question: 'b?', reasoning: '', answer: 'answering', tools: [], running: true },
@@ -84,12 +86,24 @@ describe('LxQuickDrawer', () => {
     expect(screen.getByText('web_search')).toBeTruthy()
   })
 
-  it('close and reset dispatch their actions', () => {
+  it('collapses to the edge grip and expands through the injected write', () => {
     const store = mountInstance()
-    store.actions.open()
+    store.actions.expand()
+    mountDrawer(store)
+    fireEvent.click(screen.getByRole('button', { name: en['quick.collapse'] }))
+    expect(store.getSnapshot().mode).toBe('collapsed')
+    cleanup()
+    const { expand } = mountDrawer(store)
+    const grip = screen.getByRole('button', { name: en['quick.expand'] })
+    expect(grip.textContent).toContain(en['quick.label'])
+    fireEvent.click(grip)
+    expect(expand).toHaveBeenCalledExactlyOnceWith()
+  })
+
+  it('reset dispatches its action', () => {
+    const store = mountInstance()
+    store.actions.expand()
     const { reset } = mountDrawer(store)
-    fireEvent.click(screen.getByRole('button', { name: en['quick.close'] }))
-    expect(store.getSnapshot().open).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: en['quick.reset'] }))
     expect(reset).toHaveBeenCalledExactlyOnceWith()
   })

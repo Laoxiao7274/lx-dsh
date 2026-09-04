@@ -30,8 +30,8 @@ export type ArtifactRead =
 
 /** Render-facing artifact-preview panel state. */
 export interface ArtifactPanelState {
-  /** Whether the preview panel is open. */
-  open: boolean
+  /** Panel mode: expanded shows the panel body, collapsed shows the edge grip. */
+  mode: 'expanded' | 'collapsed'
   /** Opened tabs in open order; the active tab renders last in the strip. */
   tabs: readonly ArtifactTab[]
   /** Focused tab identity; `null` only while no tab is open. */
@@ -45,7 +45,8 @@ export type ArtifactPanelActions = {
   openTab: (draft: ArtifactPanelState, tab: ArtifactTab) => void
   focusTab: (draft: ArtifactPanelState, key: string) => void
   closeTab: (draft: ArtifactPanelState, key: string) => void
-  closePanel: (draft: ArtifactPanelState) => void
+  collapsePanel: (draft: ArtifactPanelState) => void
+  expandPanel: (draft: ArtifactPanelState) => void
   setRead: (draft: ArtifactPanelState, key: string, read: ArtifactRead) => void
   clearRead: (draft: ArtifactPanelState, key: string) => void
 }
@@ -64,7 +65,7 @@ export function artifactTabKey(sessionId: SessionId, path: string): string {
 export function createArtifactPanelStore(): EngineStoreHandle<ArtifactPanelState, ArtifactPanelActions> {
   return defineStore({
     init: (): ArtifactPanelState => ({
-      open: false,
+      mode: 'collapsed',
       tabs: [],
       activeKey: null,
       reads: {},
@@ -76,12 +77,12 @@ export function createArtifactPanelStore(): EngineStoreHandle<ArtifactPanelState
           draft.tabs = [...draft.tabs, tab]
         }
         draft.activeKey = key
-        draft.open = true
+        draft.mode = 'expanded'
       },
       focusTab: (draft, key) => {
         if (draft.tabs.some(existing => artifactTabKey(existing.sessionId, existing.path) === key)) {
           draft.activeKey = key
-          draft.open = true
+          draft.mode = 'expanded'
         }
       },
       closeTab: (draft, key) => {
@@ -103,8 +104,11 @@ export function createArtifactPanelStore(): EngineStoreHandle<ArtifactPanelState
           draft.activeKey = neighbor === undefined ? null : artifactTabKey(neighbor.sessionId, neighbor.path)
         }
       },
-      closePanel: (draft) => {
-        draft.open = false
+      collapsePanel: (draft) => {
+        draft.mode = 'collapsed'
+      },
+      expandPanel: (draft) => {
+        draft.mode = 'expanded'
       },
       setRead: (draft, key, read) => {
         draft.reads = { ...draft.reads, [key]: read }

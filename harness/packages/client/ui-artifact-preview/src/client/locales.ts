@@ -6,7 +6,7 @@ export const NS = 'artifactPreview'
 /** Dictionary key union for the artifact-preview namespace. */
 export type ArtifactPreviewKey =
   | 'row.label' | 'row.mediaCount' | 'row.fileCount'
-  | 'panel.title' | 'panel.close' | 'panel.reload' | 'panel.external'
+  | 'panel.title' | 'panel.close' | 'panel.collapse' | 'panel.expand' | 'panel.grip' | 'panel.reload' | 'panel.external'
   | 'panel.back' | 'panel.forward'
   | 'tab.close'
   | 'view.copy' | 'view.copied' | 'view.footnotes'
@@ -37,6 +37,9 @@ export const zh: Record<ArtifactPreviewKey, string> = {
   'row.fileCount': '文件',
   'panel.title': '产物预览',
   'panel.close': '关闭预览',
+  'panel.collapse': '收缩面板',
+  'panel.expand': '展开产物预览',
+  'panel.grip': '产物',
   'panel.reload': '重新读取',
   'panel.external': '在系统应用打开',
   'panel.back': '后退',
@@ -77,6 +80,9 @@ export const en: Record<ArtifactPreviewKey, string> = {
   'row.fileCount': 'files',
   'panel.title': 'Artifact preview',
   'panel.close': 'Close preview',
+  'panel.collapse': 'Collapse panel',
+  'panel.expand': 'Expand artifact preview',
+  'panel.grip': 'Artifacts',
   'panel.reload': 'Reload',
   'panel.external': 'Open in system app',
   'panel.back': 'Back',

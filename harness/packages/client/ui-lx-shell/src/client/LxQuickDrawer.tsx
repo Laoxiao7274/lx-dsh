@@ -24,6 +24,8 @@ export interface LxQuickDrawerInjected {
   ask: (text: string) => void
   /** Archive the quick session and start a fresh one. */
   reset: () => void
+  /** Expand through the edge grip (apply announces the expansion). */
+  expand: () => void
 }
 
 /** Full props of the quick-answers drawer. */
@@ -32,12 +34,14 @@ export type LxQuickDrawerProps = PropsRuntime<'shell.overlay'>
   & PropsLocale<'settings.lxShell'> & LxQuickDrawerInjected
 
 /**
- * Render the quick-answers drawer.
+ * Render the quick-answers drawer: the expanded slide-in panel or, while
+ * collapsed, the edge grip that expands it back.
  * @param props - slot runtime share, the drawer store, the locale seat, and
  *   the ask/reset writes.
- * @returns the drawer, or nothing while closed.
+ * @returns the drawer, its collapsed grip, or nothing while closed.
  */
-export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawerProps): ReactNode {
+export function LxQuickDrawer({ useStore, actions, t, ask, reset, expand }: LxQuickDrawerProps): ReactNode {
+  const mode = useStore(s => s.mode)
   const state = useStore(s => s)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -51,8 +55,8 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
 
   // Focus the composer on expand.
   useEffect(() => {
-    if (state.open) inputRef.current?.focus()
-  }, [state.open])
+    if (mode === 'expanded') inputRef.current?.focus()
+  }, [mode])
 
   // Keep the newest exchange in view: answer growth and new turns.
   useEffect(() => {
@@ -66,7 +70,22 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
     }
   }, [state.turns])
 
-  if (!state.open) return null
+  if (mode === 'closed') return null
+
+  if (mode === 'collapsed') {
+    return (
+      <button
+        type="button"
+        className={css.grip}
+        aria-label={t('quick.expand')}
+        title={t('quick.expand')}
+        onClick={() => { expand() }}
+      >
+        <span className={css.gripMark} aria-hidden>»</span>
+        <span className={css.gripLabel}>{t('quick.label')}</span>
+      </button>
+    )
+  }
 
   const submit = (): void => {
     const input = inputRef.current
@@ -90,11 +109,11 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
           <span className={css.resetLabel}>{t('quick.reset')}</span>
         </button>
         <button
-          type="button" className={css.close} aria-label={t('quick.close')} title={t('quick.close')}
-          onClick={() => { actions.close() }}
+          type="button" className={css.collapse} aria-label={t('quick.collapse')} title={t('quick.collapse')}
+          onClick={() => { actions.collapse() }}
         >
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
       </div>

@@ -15,6 +15,9 @@ const createObjectURL = URL.createObjectURL
 const revokeObjectURL = URL.revokeObjectURL
 URL.createObjectURL = () => `blob:${crypto.randomUUID()}`
 URL.revokeObjectURL = () => {}
+// Node has no window either; the side-panel mutex rides a window EventTarget.
+const windowShim = new EventTarget()
+;(globalThis as { window?: unknown }).window = windowShim
 afterEach(() => {
   URL.createObjectURL = createObjectURL
   URL.revokeObjectURL = revokeObjectURL
@@ -223,6 +226,24 @@ describe('ui-artifact-preview apply', () => {
       panelFace.locateFolder(tab)
       panelFace.copyPath('C:/work/proj/x.md')
       expect(b.calls.opens).toEqual(['C:/work/proj/x.md', 'C:/work/proj'])
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('announces expansion and collapses when the quick drawer announces', async () => {
+    const b = await bench(() => TEXT_EMPTY)
+    const fiber = await b.load()
+    try {
+      const bound = bindPanel(b.slots)
+      const face = rowFace(b.slots)
+      face.open('s1', 'docs/a.md')
+      expect(bound.instance.getSnapshot().mode).toBe('expanded')
+      // The quick drawer's twin announcement collapses this panel.
+      windowShim.dispatchEvent(new CustomEvent('lx-side-panel', {
+        detail: { owner: 'lx-quick', expanded: true },
+      }))
+      expect(bound.instance.getSnapshot().mode).toBe('collapsed')
     } finally {
       await fiber.dispose()
     }

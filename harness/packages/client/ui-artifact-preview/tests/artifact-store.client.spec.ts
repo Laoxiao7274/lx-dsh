@@ -13,7 +13,7 @@ describe('createArtifactPanelStore', () => {
     const store = createArtifactPanelStore().create()
     store.actions.openTab(A)
     const snap = store.getSnapshot()
-    expect(snap.open).toBe(true)
+    expect(snap.mode).toBe('expanded')
     expect(snap.tabs).toEqual([A])
     expect(snap.activeKey).toBe(artifactTabKey('s1' as never, '/w/a.md'))
   })
@@ -48,7 +48,7 @@ describe('createArtifactPanelStore', () => {
     store.actions.openTab(A)
     store.actions.closeTab(artifactTabKey(A.sessionId, A.path))
     const snap = store.getSnapshot()
-    expect(snap.open).toBe(true)
+    expect(snap.mode).toBe('expanded')
     expect(snap.tabs).toEqual([])
     expect(snap.activeKey).toBeNull()
   })
@@ -63,17 +63,20 @@ describe('createArtifactPanelStore', () => {
     expect(snap.activeKey).toBe(artifactTabKey(B.sessionId, B.path))
   })
 
-  it('focus on an unknown key is refused and closePanel only hides', () => {
+  it('focus on an unknown key is refused; collapse keeps tabs; expand shows them', () => {
     const store = createArtifactPanelStore().create()
     store.actions.openTab(A)
     store.actions.focusTab('nope')
     expect(store.getSnapshot().activeKey).toBe(artifactTabKey(A.sessionId, A.path))
-    store.actions.closePanel()
+    store.actions.collapsePanel()
     const snap = store.getSnapshot()
-    expect(snap.open).toBe(false)
+    expect(snap.mode).toBe('collapsed')
     expect(snap.tabs).toEqual([A])
+    store.actions.expandPanel()
+    expect(store.getSnapshot().mode).toBe('expanded')
+    expect(store.getSnapshot().tabs).toEqual([A])
     store.actions.focusTab(artifactTabKey(A.sessionId, A.path))
-    expect(store.getSnapshot().open).toBe(true)
+    expect(store.getSnapshot().mode).toBe('expanded')
   })
 
   it('setRead replaces and clearRead removes one entry', () => {

@@ -20,6 +20,8 @@ import css from './ArtifactPanel.module.css'
 
 /** Panel-registered injected face the apply body owns. */
 export interface ArtifactPanelInjected {
+  /** Expand the panel through the edge grip (apply announces the expansion). */
+  expand: () => void
   /** Re-read the focused artifact (the reload button). */
   reload: (tab: ArtifactTab) => void
   /** Hand one artifact path to the system opener. */
@@ -40,22 +42,35 @@ export type ArtifactPanelProps = PropsLocale<typeof NS>
 /**
  * Render the artifact-preview panel body for the current panel state.
  * @param props - panel store share, locale seat, and injected writes.
- * @returns the panel, or nothing while closed.
+ * @returns the expanded panel, the collapsed edge grip, or nothing.
  */
 export function ArtifactPanel({
-  useStore, actions, t, reload, openExternal, copyPath, locateFolder, markdownLabels,
+  useStore, actions, t, expand, reload, openExternal, copyPath, locateFolder, markdownLabels,
 }: ArtifactPanelProps): ReactNode {
-  const open = useStore(s => s.open)
+  const mode = useStore(s => s.mode)
   const tabs = useStore(s => s.tabs)
   const activeKey = useStore(s => s.activeKey)
   const reads = useStore(s => s.reads)
   const labels = useMemo(() => markdownLabels(t), [markdownLabels, t])
   useEffect(() => {
     if (typeof document === 'undefined') return
-    document.body.style.paddingRight = open ? '460px' : ''
-    return () => { document.body.style.paddingRight = '' }
-  }, [open])
-  if (!open) return null
+    document.body.classList.toggle('lx-apv-panel', mode === 'expanded')
+    return () => { document.body.classList.remove('lx-apv-panel') }
+  }, [mode])
+  if (mode === 'collapsed') {
+    return (
+      <button
+        type="button"
+        className={css.grip}
+        aria-label={t('panel.expand')}
+        title={t('panel.expand')}
+        onClick={() => { expand() }}
+      >
+        <span className={css.gripMark} aria-hidden>»</span>
+        <span className={css.gripLabel}>{t('panel.grip')}</span>
+      </button>
+    )
+  }
   const active = tabs.find(tab => artifactTabKey(tab.sessionId, tab.path) === activeKey)
   const read = active === undefined ? undefined : reads[artifactTabKey(active.sessionId, active.path)]
   return (
@@ -78,10 +93,10 @@ export function ArtifactPanel({
           <svg viewBox="0 0 16 16" width="14" height="14"><path d="M9 3h4v4M13 3 7.5 8.5M11 9.5v3h-7v-7h3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
         </button>
         <button
-          type="button" className={css.iconButton} title={t('panel.close')}
-          onClick={() => { actions.closePanel() }}
+          type="button" className={css.iconButton} title={t('panel.collapse')}
+          onClick={() => { actions.collapsePanel() }}
         >
-          <svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          <svg viewBox="0 0 16 16" width="14" height="14"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
       </div>
       {tabs.length > 0 && (

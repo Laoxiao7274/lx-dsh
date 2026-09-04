@@ -1,6 +1,56 @@
-/* Artifact-preview side panel: fixed right, true split via body padding the
- * apply layer owns. Media stages are dark (same family as the row cards);
- * text views scroll inside the panel body. */
+/* Artifact-preview side panel: fixed right, true split through the
+ * lx-apv-panel body class the panel component owns. Media stages are dark
+ * (same family as the row cards); text views scroll inside the panel body.
+ * The collapsed grip stays above every expanded panel (z 62 > 60) so a
+ * collapsed side panel stays reachable beside whichever panel is expanded. */
+
+/* The panel frees its width from the page body while expanded (class toggle,
+ * not a style write: the quick drawer owns a sibling class of its own and a
+ * raw write from either would clobber the other on overlap). */
+:global(body.lx-apv-panel) {
+  padding-right: 460px;
+}
+
+/* ── collapsed edge grip ── */
+/* The grip claims the upper right edge; the quick drawer's twin grip claims
+ * the lower half, so two collapsed side panels stack without overlap. */
+.grip {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 55%;
+  width: 26px;
+  padding: 0;
+  border: 0;
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px 0 0 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.grip:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.gripMark {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.gripLabel {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
 
 .panel {
   position: fixed;
