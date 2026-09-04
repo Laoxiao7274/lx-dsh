@@ -9,3 +9,4 @@ tb_*.png
 .update-base.json
 dist-nsis-log.txt
 .env.publish
+OPS.local.md

@@ -14,7 +14,7 @@ git subtree pull --prefix=harness upstream master --squash
 # 门禁（在 harness/ 内跑）：pnpm run build && pnpm --config.verify-deps-before-run=false run test:gui
 ```
 
-- harness 历史：本仓库以 squash 形式导入（`1b92b7e`，对应老 fork 的 `0fed6c2`）；完整提交历史保留在归档目录 `../deepseek-harness.migrated-*`（历史 vault，勿删）。如需升级为全历史导入，网络畅通时重做 subtree add（非 squash）并 cherry-pick 后续提交。
+- harness 历史：本仓库以 squash 形式导入（`1b92b7e`，对应老 fork 的 `0fed6c2`）；完整提交历史保留在 `../deepseek-harness`（唯一的全历史 vault，**勿删**；VS Code 释放句柄后改名 `deepseek-harness.migrated-20260903` 归档）。如需升级为全历史导入，网络畅通时重做 subtree add（非 squash）并 cherry-pick 后续提交。
 - ⚠️ 直连 GitHub 大流量传输会被掐（curl 18 / 连接重置）。大 clone/fetch 用代理（本机 7890 Clash）或小批量 depth 递增；小 fetch 正常。
 
 ## 常用命令
@@ -50,14 +50,11 @@ git diff --cached --check                                  # 空白检查
 1. 改 `package.json` 的 `version`，把发布内容写进 `RELEASE_NOTES.md`（条目用 `- ` 列表；它是服务端 manifest 的 `notes` 字段来源）。
 2. `pnpm run dist:full`（增量 harness 构建约 10–20 分钟，冷构建更久）。
 3. `node scripts/publish.mjs` —— 登录管理 API、创建/更新版本记录、上传安装包、校验线上 manifest，一条命令完成。凭据在 `.env.publish`（已 git-ignore；`LX_UPDATE_ADMIN_USER/LX_UPDATE_ADMIN_PASS`，也可用环境变量）。
-4. 验证：`http://123.57.129.111/update/win/latest.json` 的 version/size/notes 与预期一致。
+4. 验证线上 manifest 的 version/size/notes 与预期一致（地址见 `OPS.local.md`，git-ignored）。
 
-## 更新服务器（123.57.129.111）
+## 更新服务器
 
-- **架构**：Vue 官网页面 + Express/SQLite 后端（`/opt/lx-dsh-update/`），pm2 进程名 `lx-dsh-update`（注意：systemd 的 `lxcode-update` 是另一个产品，别动）。SSH 用 `~/.ssh/id_rsa`（root，公钥已装）。
-- **数据**：`storage/releases/` 放安装包文件，`storage/update.db`（better-sqlite3）存 versions/assets；`/update/win/latest.json` 由服务端从 DB 实时拼装（`notes` 字段来自 `versions.summary`，2026-08-28 加的透传）。
-- **发布 API**：`POST /api/admin/publish`（multipart：`file` + `version`/`channel`/`date`/`summary`/`notes`(JSON 数组字符串)/`platform`），一次性完成版本 upsert + 资产 upsert；管理 API 走 Bearer token（`POST /api/admin/login`，账密在服务器 `.env` 与本地 `.env.publish`）。改服务端代码后必须 `pm2 restart lx-dsh-update`。
-- **更新通道**：现行走全量安装包（fullFallback:true，electron-updater latest.yml 路径），新装用户也能从官网下载页拿同一个包；基于 0.2.1 的增量 zip 流已构建（`build-update.mjs` 产出 + 客户端 delta 逻辑就绪），等服务端支持 `baseVersion/fullFallback` 字段后再切换。
+源码在仓内 `update-server/`（Vue 官网 + Express/SQLite）。**所有地址、凭据与运维细节**在 `update-server/.env` 与 `OPS.local.md`（均 git-ignore；部署脚本 `ssh_run.py`/`sftp_put.py`/`publish.py` 的凭据也从 `.env` 读取）。架构与 API 契约详见 `update-server/README.md`。
 
 ## 已定决策
 
@@ -71,6 +68,5 @@ git diff --cached --check                                  # 空白检查
 - PowerShell 双引号 here-string 会吃反引号并插值 `${...}`——含 JS 模板字符串的代码一律用文件写入工具，不要 here-string 内插。
 - PowerShell 管道里 git 的 stderr 会被当成 NativeCommandError（红字噪音）——判断成败看 exit code 与实际输出。
 - git 大流量操作被杀会留 `shallow.lock` / `tmp_pack_*` 残留 → 之后所有 fetch 报 "File exists"/exit 128；清掉锁再试。
-- 直连 GitHub 大单流（>几十 MB）易被掐断（curl 18 early EOF）——分批 depth 递增或走代理；`git ls-remote` 可用于探连通性。
 - `pnpm run test:gui`（harness）会触发 verify-deps 前置 install，无 TTY 直接失败 → 加 `--config.verify-deps-before-run=false`。
 - 发布前跑测试的面在 harness 侧（test:gui / host tsc）；lx-dsh 侧改动跑 `pnpm run build` + 手动 dev 验证。
