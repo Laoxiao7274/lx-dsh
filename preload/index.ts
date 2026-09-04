@@ -65,14 +65,16 @@ contextBridge.exposeInMainWorld('lx', {
     setLanBind: (enabled: boolean): Promise<any> => ipcRenderer.invoke('lx:settings:lanBind', enabled),
   },
   todos: {
-    /** The user's persisted to-do list. */
-    get: (): Promise<any> => ipcRenderer.invoke('lx:todos'),
-    /** Add one item from text; returns the post-state list. */
-    add: (text: string): Promise<any> => ipcRenderer.invoke('lx:todos:add', text),
+    /** One workspace's persisted to-do list. */
+    get: (workspaceKey: string): Promise<any> => ipcRenderer.invoke('lx:todos', workspaceKey),
+    /** Open (not-done) counts per workspace key, for the reminder badge. */
+    counts: (): Promise<any> => ipcRenderer.invoke('lx:todos:counts'),
+    /** Add one item to a workspace; returns the post-state list. */
+    add: (workspaceKey: string, text: string): Promise<any> => ipcRenderer.invoke('lx:todos:add', workspaceKey, text),
     /** Remove one item by id; returns the post-state list. */
-    remove: (id: string): Promise<any> => ipcRenderer.invoke('lx:todos:remove', id),
+    remove: (workspaceKey: string, id: string): Promise<any> => ipcRenderer.invoke('lx:todos:remove', workspaceKey, id),
     /** Toggle one item's done flag; returns the post-state list. */
-    toggle: (id: string): Promise<any> => ipcRenderer.invoke('lx:todos:toggle', id),
+    toggle: (workspaceKey: string, id: string): Promise<any> => ipcRenderer.invoke('lx:todos:toggle', workspaceKey, id),
   },
   remote: {
     /** Validate + connect to a remote backend (address + access key), persisting it. */

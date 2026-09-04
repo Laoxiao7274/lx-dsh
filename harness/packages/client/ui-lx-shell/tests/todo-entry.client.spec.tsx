@@ -10,14 +10,14 @@ afterEach(cleanup)
 
 const COPY: Record<LxShellKey, string> = en
 
-type StoreInstance = ReturnType<ReturnType<typeof createTodoPanelStore>['create']>
-
-function mountEntry(store: StoreInstance, open = vi.fn()) {
+function mountEntry(store: ReturnType<ReturnType<typeof createTodoPanelStore>['create']>, open = vi.fn()) {
   const props = {
     open,
     wide: true,
     useStore: (selector: (s: TodoPanelState) => unknown) => selector(store.getSnapshot()),
     actions: store.actions,
+    useSessions: (selector: (s: { current: string | undefined }) => unknown) => selector({ current: undefined }),
+    useWorkspaces: (selector: (s: { items: unknown[] }) => unknown) => selector({ items: [] }),
     t: (key: string) => COPY[key as LxShellKey] ?? key,
   } as unknown as LxTodosEntryProps
   render(<LxTodosEntry {...props} />)
@@ -32,35 +32,26 @@ describe('LxTodosEntry', () => {
     expect(screen.getByRole('button', { name: en['todo.title'] })).toBeTruthy()
   })
 
-  it('badges the open count and caps at 99+', () => {
+  it('badges the total open count across buckets and caps at 99+', () => {
     const store = createTodoPanelStore().create()
-    store.actions.setItems([
-      { id: 'a', text: 'one', done: false, createdAt: 1 },
-      { id: 'b', text: 'two', done: true, createdAt: 2, doneAt: 3 },
-      { id: 'c', text: 'three', done: false, createdAt: 4 },
-    ])
+    store.actions.setCounts({ a: 2, b: 1 })
     mountEntry(store)
-    expect(screen.getByText('2')).toBeTruthy()
+    expect(screen.getByText('3')).toBeTruthy()
 
-    // The stubbed useStore does not subscribe, so a second mount carries the
-    // oversized list (open-count cap).
     const big = createTodoPanelStore().create()
-    big.actions.setItems(Array.from({ length: 120 }, (_, i) => ({
-      id: 'i' + String(i), text: 'x', done: false, createdAt: i,
-    })))
+    big.actions.setCounts({ a: 60, b: 60 })
     mountEntry(big)
     expect(screen.getByText('99+')).toBeTruthy()
   })
 
-  it('hands its rectangle to the open write', () => {
+  it('hands its rectangle and workspace context to the open write', () => {
     const store = createTodoPanelStore().create()
     const open = vi.fn()
     mountEntry(store, open)
     fireEvent.click(screen.getByRole('button', { name: en['todo.title'] }))
-    expect(open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      left: expect.any(Number),
-      top: expect.any(Number),
-      bottom: expect.any(Number),
-    }))
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ left: expect.any(Number), top: expect.any(Number), bottom: expect.any(Number) }),
+      expect.objectContaining({ key: expect.any(String), title: undefined }),
+    )
   })
 })

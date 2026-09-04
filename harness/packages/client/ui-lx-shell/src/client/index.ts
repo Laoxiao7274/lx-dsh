@@ -37,7 +37,7 @@ import { LxQuickButton } from './LxQuickButton.tsx'
 import { LxQuickDrawer } from './LxQuickDrawer.tsx'
 import { LxTodosEntry } from './LxTodosEntry.tsx'
 import { LxTodosPanel } from './LxTodosPanel.tsx'
-import { LxTodosTreeRow } from './LxTodosTreeRow.tsx'
+import { LxTodosTreeRow, type TodoWorkspaceContext } from './LxTodosTreeRow.tsx'
 import { LxUpdaterRow, type UpdaterRowInjected } from './LxUpdaterRow.tsx'
 import { createQuickDrawerStore } from './quick-store.ts'
 import { createTodoPanelStore, type TodoAnchor, type TodoItem } from './todo-store.ts'
@@ -82,12 +82,13 @@ export interface LxTodoItem {
   readonly doneAt?: number
 }
 
-/** The shell's to-do list operations (userData-backed, LX-DSH only). */
+/** The shell's to-do operations, bucketed per workspace (LX-DSH only). */
 export interface LxTodosBridge {
-  get: () => Promise<{ items: LxTodoItem[] }>
-  add: (text: string) => Promise<{ items: LxTodoItem[] }>
-  remove: (id: string) => Promise<{ items: LxTodoItem[] }>
-  toggle: (id: string) => Promise<{ items: LxTodoItem[] }>
+  get: (workspaceKey: string) => Promise<{ items: LxTodoItem[] }>
+  counts: () => Promise<{ counts: Record<string, number> }>
+  add: (workspaceKey: string, text: string) => Promise<{ items: LxTodoItem[] }>
+  remove: (workspaceKey: string, id: string) => Promise<{ items: LxTodoItem[] }>
+  toggle: (workspaceKey: string, id: string) => Promise<{ items: LxTodoItem[] }>
 }
 
 /**
@@ -380,31 +381,41 @@ export function apply(ctx: ClientContext): void {
   const todos = shell.todos
   const todoStore = createTodoPanelStore()
   let todoBound: BoundActions<typeof todoStore> | undefined
+  /** The bucket the open panel is showing (apply-side mirror of the store). */
+  let todoKey = ''
 
-  /** Replace the mirrored list from a bridge reply. */
+  /** Replace the mirrored list and refresh the badge counts. */
   const todoSync = (reply: { items: TodoItem[] }): void => {
     todoBound?.setLoading(false)
     todoBound?.setItems(reply.items)
+    void todos.counts().then(counts => { todoBound?.setCounts(counts.counts) })
+      .catch(() => { /* the badge keeps the last good counts */ })
   }
 
-  /** Load the list once per opening panel (the shell caches on its side). */
-  const ensureTodos = (): void => {
+  /** Load the shown bucket once per opening panel. */
+  const ensureTodos = (workspaceKey: string): void => {
     todoBound?.setLoading(true)
-    void todos.get().then(todoSync).catch(() => { todoBound?.setLoading(false) })
+    void todos.get(workspaceKey)
+      .then(todoSync)
+      .catch(() => { todoBound?.setLoading(false) })
   }
 
   /** One bridge mutation whose reply lands in the mirror. */
-  const todoMutate = (run: () => Promise<{ items: TodoItem[] }>): void => {
-    void run().then(todoSync).catch(() => { /* the mirror keeps the last good list */ })
+  const todoMutate = (workspaceKey: string, run: () => Promise<{ items: TodoItem[] }>): void => {
+    void run().then(todoSync)
+      .catch(() => { /* the mirror keeps the last good list */ })
   }
 
   /** Bind the store actions and hand both entries the same open write. */
-  const injectedTodosEntry = (actions: BoundActions<typeof todoStore>): { open: (anchor: TodoAnchor) => void } => {
+  const injectedTodosEntry = (
+    actions: BoundActions<typeof todoStore>,
+  ): { open: (anchor: TodoAnchor, workspace: TodoWorkspaceContext) => void } => {
     todoBound = actions
     return {
-      open: (anchor) => {
-        actions.open(anchor)
-        ensureTodos()
+      open: (anchor, workspace) => {
+        todoKey = workspace.key
+        actions.open(anchor, workspace.key, workspace.title)
+        ensureTodos(workspace.key)
       },
     }
   }
@@ -429,9 +440,9 @@ export function apply(ctx: ClientContext): void {
     store: todoStore,
     locale: SETTINGS_NS,
     inject: (): LxTodosPanelInjected & { close: () => void } => ({
-      add: (text) => { todoMutate(() => todos.add(text)) },
-      remove: (id) => { todoMutate(() => todos.remove(id)) },
-      toggle: (id) => { todoMutate(() => todos.toggle(id)) },
+      add: (text) => { todoMutate(todoKey, () => todos.add(todoKey, text)) },
+      remove: (id) => { todoMutate(todoKey, () => todos.remove(todoKey, id)) },
+      toggle: (id) => { todoMutate(todoKey, () => todos.toggle(todoKey, id)) },
       close: () => { todoBound?.close() },
     }),
   }, LxTodosPanel))

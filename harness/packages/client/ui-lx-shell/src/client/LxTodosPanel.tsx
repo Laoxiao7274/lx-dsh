@@ -71,7 +71,11 @@ export function LxTodosPanel({
         onClick={(e) => { e.stopPropagation() }}
       >
         <div className={css.header}>
-          <span className={css.title}>{t('todo.title')}</span>
+          <span className={css.title}>
+            {state.workspaceTitle === undefined
+              ? t('todo.title')
+              : `${t('todo.title')} · ${state.workspaceTitle}`}
+          </span>
         </div>
         <div className={css.composer}>
           <input

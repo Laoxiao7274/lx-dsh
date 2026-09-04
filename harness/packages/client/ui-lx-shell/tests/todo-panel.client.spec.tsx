@@ -50,25 +50,26 @@ describe('LxTodosPanel', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('anchors to the store-carried rectangle', () => {
+  it('anchors to the store-carried rectangle and titles the workspace', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open({ left: 120, top: 40, bottom: 74 })
+    store.actions.open({ left: 120, top: 40, bottom: 74 }, 'w1', 'myt-agent')
     mountPanel(store)
     const dialog = screen.getByRole('dialog') as HTMLElement
     expect(dialog.style.left).toBe('120px')
     expect(dialog.style.top).toBe('40px')
+    expect(dialog.textContent).toContain('myt-agent')
   })
 
   it('shows the empty hint when the list is empty', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open({ left: 0, top: 0, bottom: 0 })
+    store.actions.open({ left: 0, top: 0, bottom: 0 }, '', undefined)
     mountPanel(store)
     expect(screen.getByText(en['todo.empty'])).toBeTruthy()
   })
 
   it('sends a typed line on Enter and clears the draft', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open({ left: 0, top: 0, bottom: 0 })
+    store.actions.open({ left: 0, top: 0, bottom: 0 }, '', undefined)
     const { add } = mountPanel(store, { add: vi.fn() })
     const input = screen.getByRole('textbox') as HTMLInputElement
     fireEvent.change(input, { target: { value: '写周报' } })
@@ -79,7 +80,7 @@ describe('LxTodosPanel', () => {
 
   it('blank Enter does not send', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open({ left: 0, top: 0, bottom: 0 })
+    store.actions.open({ left: 0, top: 0, bottom: 0 }, '', undefined)
     const { add } = mountPanel(store, { add: vi.fn() })
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: '   ' } })
@@ -89,7 +90,7 @@ describe('LxTodosPanel', () => {
 
   it('renders open items before done ones and dispatches row actions', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open({ left: 0, top: 0, bottom: 0 })
+    store.actions.open({ left: 0, top: 0, bottom: 0 }, '', undefined)
     store.actions.setItems(ITEMS)
     const { toggle, remove } = mountPanel(store, { toggle: vi.fn(), remove: vi.fn() })
     expect(screen.getByText('买牛奶')).toBeTruthy()
@@ -105,7 +106,7 @@ describe('LxTodosPanel', () => {
 
   it('Escape and the backdrop close the panel', () => {
     const store = createTodoPanelStore().create()
-    store.actions.open({ left: 0, top: 0, bottom: 0 })
+    store.actions.open({ left: 0, top: 0, bottom: 0 }, '', undefined)
     const { close } = mountPanel(store, { close: vi.fn() })
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
     expect(close).toHaveBeenCalledExactlyOnceWith()

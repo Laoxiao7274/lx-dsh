@@ -1,9 +1,10 @@
 /**
  * User-todos panel state: the open flag, the anchor rectangle captured from
- * the clicked entry, and the list mirrored from the shell's persisted store
- * (userData/todos.json via the `window.lx` bridge). The apply body owns the
- * bridge calls; this store carries only the render-facing mirror so the
- * panel stays a pure-props component.
+ * the clicked entry, the workspace bucket being shown, and the list mirrored
+ * from the shell's persisted store (userData/todos.json via the `window.lx`
+ * bridge, one bucket per workspace). The apply body owns the bridge calls;
+ * this store carries only the render-facing mirror so the panel stays a
+ * pure-props component.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 
@@ -20,8 +21,14 @@ export interface TodoPanelState {
   open: boolean
   /** The clicked entry's rectangle (the overlay panel anchors to it). */
   anchor: TodoAnchor
+  /** The workspace bucket being shown ('' = the no-workspace default). */
+  workspaceKey: string
+  /** The shown workspace's display title (the panel header). */
+  workspaceTitle: string | undefined
   /** The mirrored list, oldest first (the shell's canonical order). */
   items: readonly TodoItem[]
+  /** Open (not-done) counts per workspace bucket, for the reminder badge. */
+  counts: Readonly<Record<string, number>>
   /** Whether the initial load is still in flight. */
   loading: boolean
 }
@@ -42,10 +49,14 @@ export interface TodoItem {
 
 /** Declared action shape giving the exported factory a stable return type. */
 export type TodoPanelActions = {
-  open: (draft: TodoPanelState, anchor: TodoAnchor) => void
+  open: (draft: TodoPanelState, anchor: TodoAnchor, workspaceKey: string, workspaceTitle: string | undefined) => void
   close: (draft: TodoPanelState) => void
+  /** Retarget the shown bucket (a workspace switch while open). */
+  setWorkspace: (draft: TodoPanelState, key: string, title: string | undefined) => void
   /** Replace the whole list after a bridge read or mutation. */
   setItems: (draft: TodoPanelState, items: readonly TodoItem[]) => void
+  /** Replace the per-bucket open counts after a read or mutation. */
+  setCounts: (draft: TodoPanelState, counts: Readonly<Record<string, number>>) => void
   /** Mark the initial load settled (or restarted). */
   setLoading: (draft: TodoPanelState, loading: boolean) => void
 }
@@ -61,16 +72,26 @@ export function createTodoPanelStore(): EngineStoreHandle<TodoPanelState, TodoPa
     init: (): TodoPanelState => ({
       open: false,
       anchor: { left: 0, top: 0, bottom: 0 },
+      workspaceKey: '',
+      workspaceTitle: undefined,
       items: [],
+      counts: {},
       loading: false,
     }),
     actions: {
-      open: (d, anchor) => {
+      open: (d, anchor, workspaceKey, workspaceTitle) => {
         d.open = true
         d.anchor = anchor
+        d.workspaceKey = workspaceKey
+        d.workspaceTitle = workspaceTitle
       },
       close: (d) => { d.open = false },
+      setWorkspace: (d, key, title) => {
+        d.workspaceKey = key
+        d.workspaceTitle = title
+      },
       setItems: (d, items) => { d.items = items },
+      setCounts: (d, counts) => { d.counts = counts },
       setLoading: (d, loading) => { d.loading = loading },
     },
   })

@@ -13,7 +13,7 @@ import { ensureDshRuntime } from './dsh-runtime.js';
 import { initUpdater } from './updater.js';
 import { log } from './log.js';
 import { composeRemoteUrl, readSettings, writeSettings } from './settings.js';
-import { mutateTodos, newTodoItem, readTodos } from './todos.js';
+import { mutateTodos, newTodoItem, readAllTodos, readTodos } from './todos.js';
 
 // The dsh runtime is built from the in-repo harness/ subtree: in dev
 // the backend runs the workspace build (harness/apps/cli) directly;
@@ -461,24 +461,36 @@ function registerIpc(): void {
     }
     return { ok: true };
   });
-  // ── User todos (userData/todos.json) ────────────────────────────────────
-  ipcMain.handle('lx:todos', () => {
-    return { items: readTodos() };
+  // ── User todos (userData/todos.json, one bucket per workspace) ──────────
+  ipcMain.handle('lx:todos', (_e, workspaceKey: string) => {
+    return { items: readTodos(String(workspaceKey ?? '')) };
   });
-  ipcMain.handle('lx:todos:add', (_e, text: string) => {
+  ipcMain.handle('lx:todos:counts', () => {
+    // Open (not-done) counts per workspace key, for the reminder badge.
+    const counts: Record<string, number> = {};
+    for (const [key, items] of Object.entries(readAllTodos())) {
+      const open = items.filter(item => !item.done).length;
+      if (open > 0) counts[key] = open;
+    }
+    return { counts };
+  });
+  ipcMain.handle('lx:todos:add', (_e, workspaceKey: string, text: string) => {
+    const key = String(workspaceKey ?? '');
     const item = newTodoItem(String(text ?? ''));
-    if (item === null) return { items: readTodos() };
-    return { items: mutateTodos(draft => { draft.push(item); return draft }) };
+    if (item === null) return { items: readTodos(key) };
+    return { items: mutateTodos(key, draft => { draft.push(item); return draft }) };
   });
-  ipcMain.handle('lx:todos:remove', (_e, id: string) => {
+  ipcMain.handle('lx:todos:remove', (_e, workspaceKey: string, id: string) => {
+    const key = String(workspaceKey ?? '');
     const target = String(id ?? '');
-    return { items: mutateTodos(draft => draft.filter(item => item.id !== target)) };
+    return { items: mutateTodos(key, draft => draft.filter(item => item.id !== target)) };
   });
-  ipcMain.handle('lx:todos:toggle', (_e, id: string) => {
+  ipcMain.handle('lx:todos:toggle', (_e, workspaceKey: string, id: string) => {
+    const key = String(workspaceKey ?? '');
     const target = String(id ?? '');
     const now = Date.now();
     return {
-      items: mutateTodos(draft => draft.map(item => {
+      items: mutateTodos(key, draft => draft.map(item => {
         if (item.id !== target) return item;
         const done = !item.done;
         return { ...item, done, ...(done ? { doneAt: now } : {}) };

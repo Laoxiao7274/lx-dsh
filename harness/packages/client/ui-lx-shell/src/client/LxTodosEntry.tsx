@@ -1,33 +1,38 @@
 /**
  * LX-DSH user-todos footer action: the sidebar-foot entry that opens the
- * todos panel. Wide renders the labelled row the settings trigger mirrors;
- * the collapsed rail renders the icon circle. A small badge on the icon
- * carries the open (not-done) count as the standing reminder.
+ * todos panel (the rail fallback — the tree row hides on the rail). Wide
+ * renders the labelled row; the collapsed rail renders the icon circle.
+ * The badge sums the open items across every workspace bucket; the panel
+ * opens for the CURRENT session's workspace.
  */
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SidebarFooterActionOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import css from './LxTodosEntry.module.css'
 import type { TodoAnchor } from './todo-store.ts'
+import { currentTodoWorkspace, totalOpenCount, type TodoWorkspaceContext } from './LxTodosTreeRow.tsx'
 import type { createTodoPanelStore } from './todo-store.ts'
 
 /** Full props of the user-todos footer action occupant. */
 export type LxTodosEntryProps = PropsRuntime<'sidebar.footer.action'>
   & SidebarFooterActionOwnerProps & PropsStore<ReturnType<typeof createTodoPanelStore>>
   & PropsLocale<'settings.lxShell'> & {
-    /** Open the panel anchored to this entry's current rectangle. */
-    open: (anchor: TodoAnchor) => void
+    /** Open the panel for the current workspace, anchored to this entry. */
+    open: (anchor: TodoAnchor, workspace: TodoWorkspaceContext) => void
   }
 
 /**
  * Render the user-todos entry at the sidebar foot.
  * @param props - slot runtime share, the panel store, the column display
- *   state, the locale seat, and the open write (this button's rectangle in).
+ *   state, the locale seat, and the open write (rectangle + workspace in).
  * @returns the footer button with its reminder badge.
  */
-export function LxTodosEntry({ useStore, wide, t, open }: LxTodosEntryProps): ReactNode {
-  const openCount = useStore(s => s.items.filter(item => !item.done).length)
+export function LxTodosEntry({ useStore, useSessions, useWorkspaces, wide, t, open }: LxTodosEntryProps): ReactNode {
+  const openCount = useStore(s => totalOpenCount(s.counts))
   const panelOpen = useStore(s => s.open)
+  const current = useSessions(s => s.current)
+  const items = useWorkspaces(s => s.items)
+  const workspace = currentTodoWorkspace({ current }, items)
   return (
     <button
       type="button"
@@ -37,7 +42,7 @@ export function LxTodosEntry({ useStore, wide, t, open }: LxTodosEntryProps): Re
       title={t('todo.title')}
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect()
-        open({ left: rect.left, top: rect.top, bottom: rect.bottom })
+        open({ left: rect.right, top: rect.top, bottom: rect.bottom }, workspace)
       }}
     >
       <span className={css.iconWrap}>
@@ -47,7 +52,7 @@ export function LxTodosEntry({ useStore, wide, t, open }: LxTodosEntryProps): Re
           <path d="M7.8 8.3l1.3 1.3 2-2.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         {openCount > 0
-          ? <span className={css.badge} aria-hidden>{openCount > 99 ? '99+' : String(openCount)}</span>
+          ? <span className={css.badge}>{openCount > 99 ? '99+' : String(openCount)}</span>
           : null}
       </span>
       {wide ? <span className={css.label}>{t('todo.title')}</span> : null}
