@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** LxQuickDrawer: the right-side quick-answers panel — modes, ask, reset, grip. */
+/** LxQuickDrawer: the right-side quick-answers panel — modes, ask, reset, collapse. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LxQuickDrawer, type LxQuickDrawerProps } from '../src/client/LxQuickDrawer.tsx'
@@ -20,18 +20,16 @@ function mountInstance(): StoreInstance {
 function mountDrawer(store: StoreInstance, turns?: ReturnType<typeof store.getSnapshot>['turns']) {
   const ask = vi.fn()
   const reset = vi.fn()
-  const expand = vi.fn()
   if (turns !== undefined) store.actions.setTurns(turns)
   const props = {
     ask,
     reset,
-    expand,
     useStore: (selector: (s: QuickDrawerState) => unknown) => selector(store.getSnapshot()),
     actions: store.actions,
     t: (key: string) => COPY[key as LxShellKey] ?? key,
   } as unknown as LxQuickDrawerProps
   render(<LxQuickDrawer {...props} />)
-  return { ask, reset, expand }
+  return { ask, reset }
 }
 
 describe('LxQuickDrawer', () => {
@@ -86,18 +84,19 @@ describe('LxQuickDrawer', () => {
     expect(screen.getByText('web_search')).toBeTruthy()
   })
 
-  it('collapses to the edge grip and expands through the injected write', () => {
+  it('collapses to nothing and reopens expanded from the entry button state', () => {
     const store = mountInstance()
     store.actions.expand()
     mountDrawer(store)
     fireEvent.click(screen.getByRole('button', { name: en['quick.collapse'] }))
     expect(store.getSnapshot().mode).toBe('collapsed')
     cleanup()
-    const { expand } = mountDrawer(store)
-    const grip = screen.getByRole('button', { name: en['quick.expand'] })
-    expect(grip.textContent).toContain(en['quick.label'])
-    fireEvent.click(grip)
-    expect(expand).toHaveBeenCalledExactlyOnceWith()
+    mountDrawer(store)
+    expect(document.querySelector('[role="complementary"]')).toBeNull()
+    store.actions.expand()
+    cleanup()
+    mountDrawer(store)
+    expect(screen.getByRole('complementary')).toBeTruthy()
   })
 
   it('reset dispatches its action', () => {

@@ -369,7 +369,7 @@ export function apply(ctx: ClientContext): void {
     id: 'lx-quick-drawer',
     store: quickStore,
     locale: SETTINGS_NS,
-    inject: (): { ask: (text: string) => void, reset: () => void, expand: () => void } => ({
+    inject: (): { ask: (text: string) => void, reset: () => void } => ({
       ask: (text) => {
         const binding = quickSession()
         if (binding === undefined) return
@@ -380,10 +380,6 @@ export function apply(ctx: ClientContext): void {
           .catch((error: unknown) => { quickBound?.setError(String((error as Error)?.message ?? error)) })
       },
       reset: resetQuickSession,
-      expand: () => {
-        quickBound?.expand()
-        announceQuickExpanded()
-      },
     }),
   }, LxQuickDrawer))
   ctx.slots.inject('sidebar.brand.name', () => ctx.slots.register({

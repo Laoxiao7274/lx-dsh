@@ -44,8 +44,8 @@ type PanelActions = BoundActions<ReturnType<typeof createArtifactPanelStore>>
 /**
  * The side-panel mutex event: each right-anchored panel announces its own
  * expansion and collapses when another announces one. A window-level
- * convention (no cross-package state) — the grip stays clickable even when
- * an announcement is lost, so the fallback is always manual.
+ * convention (no cross-package state) — each panel's own entry reopens it,
+ * so a lost announcement costs nothing.
  */
 const SIDE_PANEL_EVENT = 'lx-side-panel'
 
@@ -200,10 +200,6 @@ export function apply(ctx: ClientContext): void {
     inject: (actions): ArtifactPanelInjected => {
       bound = actions
       return {
-        expand: () => {
-          actions.expandPanel()
-          announceExpanded()
-        },
         reload: (tab) => { readTab(tab) },
         openExternal: (tab) => {
           void ctx.remote.session.openWorkspacePath({ path: tab.path })

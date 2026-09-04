@@ -20,8 +20,6 @@ import css from './ArtifactPanel.module.css'
 
 /** Panel-registered injected face the apply body owns. */
 export interface ArtifactPanelInjected {
-  /** Expand the panel through the edge grip (apply announces the expansion). */
-  expand: () => void
   /** Re-read the focused artifact (the reload button). */
   reload: (tab: ArtifactTab) => void
   /** Hand one artifact path to the system opener. */
@@ -42,10 +40,11 @@ export type ArtifactPanelProps = PropsLocale<typeof NS>
 /**
  * Render the artifact-preview panel body for the current panel state.
  * @param props - panel store share, locale seat, and injected writes.
- * @returns the expanded panel, the collapsed edge grip, or nothing.
+ * @returns the expanded panel, or nothing while collapsed (the row's cards
+ *   and tabs reopen it; collapse only hides, never discards).
  */
 export function ArtifactPanel({
-  useStore, actions, t, expand, reload, openExternal, copyPath, locateFolder, markdownLabels,
+  useStore, actions, t, reload, openExternal, copyPath, locateFolder, markdownLabels,
 }: ArtifactPanelProps): ReactNode {
   const mode = useStore(s => s.mode)
   const tabs = useStore(s => s.tabs)
@@ -57,20 +56,7 @@ export function ArtifactPanel({
     document.body.classList.toggle('lx-apv-panel', mode === 'expanded')
     return () => { document.body.classList.remove('lx-apv-panel') }
   }, [mode])
-  if (mode === 'collapsed') {
-    return (
-      <button
-        type="button"
-        className={css.grip}
-        aria-label={t('panel.expand')}
-        title={t('panel.expand')}
-        onClick={() => { expand() }}
-      >
-        <span className={css.gripMark} aria-hidden>»</span>
-        <span className={css.gripLabel}>{t('panel.grip')}</span>
-      </button>
-    )
-  }
+  if (mode !== 'expanded') return null
   const active = tabs.find(tab => artifactTabKey(tab.sessionId, tab.path) === activeKey)
   const read = active === undefined ? undefined : reads[artifactTabKey(active.sessionId, active.path)]
   return (

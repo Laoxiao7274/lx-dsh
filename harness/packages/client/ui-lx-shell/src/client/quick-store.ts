@@ -30,12 +30,12 @@ export interface QuickTurn {
   running: boolean
 }
 
-/** The drawer's presentation mode: never opened, expanded, or the edge grip. */
+/** The drawer's presentation mode: never opened, expanded, or hidden. */
 export type QuickDrawerMode = 'closed' | 'expanded' | 'collapsed'
 
 /** Render-facing quick-answers drawer state. */
 export interface QuickDrawerState {
-  /** Drawer presentation: closed hides everything; collapsed shows the grip. */
+  /** Drawer presentation: closed/collapsed hide it; only the label differs. */
   mode: QuickDrawerMode
   /** The quick session; undefined until the first open creates one. */
   sessionId: SessionId | undefined
@@ -47,13 +47,13 @@ export interface QuickDrawerState {
 
 /** Declared action shape giving the exported factory a stable return type. */
 export type QuickDrawerActions = {
-  /** Expand the drawer (an entry click or the collapsed grip). */
+  /** Expand the drawer (an entry click). */
   expand: (draft: QuickDrawerState) => void
-  /** Collapse to the edge grip (keeps the session and turns). */
+  /** Collapse to hidden (keeps the session and turns). */
   collapse: (draft: QuickDrawerState) => void
   /** Hide entirely (kept for the close affordance the shell may offer). */
   close: (draft: QuickDrawerState) => void
-  /** Expand when collapsed, collapse when expanded. */
+  /** Expand when hidden, collapse when expanded. */
   toggle: (draft: QuickDrawerState) => void
   /** Bind a newly created quick session (apply body calls this after create). */
   bindSession: (draft: QuickDrawerState, id: SessionId) => void

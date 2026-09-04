@@ -27,10 +27,9 @@ const TAB_BIN: ArtifactTab = { sessionId: 's1' as never, path: '/w/i.ckpt', name
 function mountPanel(
   store: StoreInstance,
   injected: Partial<Pick<ArtifactPanelProps,
-    'expand' | 'reload' | 'openExternal' | 'copyPath' | 'locateFolder' | 'markdownLabels'>> = {},
+    'reload' | 'openExternal' | 'copyPath' | 'locateFolder' | 'markdownLabels'>> = {},
 ) {
   const props = {
-    expand: vi.fn(),
     reload: vi.fn(),
     openExternal: vi.fn(),
     copyPath: vi.fn(),
@@ -45,24 +44,20 @@ function mountPanel(
 }
 
 describe('ArtifactPanel', () => {
-  it('renders the collapsed edge grip instead of nothing after a collapse', () => {
+  it('renders nothing while collapsed (the artifact cards reopen it)', () => {
     const store = createArtifactPanelStore().create()
     store.actions.openTab(TAB_MD)
     store.actions.collapsePanel()
-    const expand = vi.fn()
     const props = {
-      expand,
       reload: vi.fn(), openExternal: vi.fn(), copyPath: vi.fn(), locateFolder: vi.fn(),
       markdownLabels: (t: (key: string) => string) => ({ code: { copyLabel: t('view.copy'), copiedLabel: t('view.copied') }, footnotes: t('view.footnotes') }),
       useStore: (selector: (s: ArtifactPanelState) => unknown) => selector(store.getSnapshot()),
       actions: store.actions,
       t: (key: string) => COPY[key as ArtifactPreviewKey] ?? key,
     } as unknown as ArtifactPanelProps
-    render(<ArtifactPanel {...props} />)
-    const grip = screen.getByRole('button', { name: en['panel.expand'] })
-    expect(grip.textContent).toContain(en['panel.grip'])
-    fireEvent.click(grip)
-    expect(expand).toHaveBeenCalledExactlyOnceWith()
+    const { container } = render(<ArtifactPanel {...props} />)
+    expect(container.firstChild).toBeNull()
+    expect(store.getSnapshot().tabs).toHaveLength(1)
   })
 
   it('shows the empty state with the panel open and no tabs', () => {

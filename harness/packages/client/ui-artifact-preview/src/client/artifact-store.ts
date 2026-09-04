@@ -30,7 +30,7 @@ export type ArtifactRead =
 
 /** Render-facing artifact-preview panel state. */
 export interface ArtifactPanelState {
-  /** Panel mode: expanded shows the panel body, collapsed shows the edge grip. */
+  /** Panel mode: expanded shows the panel body, collapsed hides it (the row's cards reopen it). */
   mode: 'expanded' | 'collapsed'
   /** Opened tabs in open order; the active tab renders last in the strip. */
   tabs: readonly ArtifactTab[]

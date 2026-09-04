@@ -24,8 +24,6 @@ export interface LxQuickDrawerInjected {
   ask: (text: string) => void
   /** Archive the quick session and start a fresh one. */
   reset: () => void
-  /** Expand through the edge grip (apply announces the expansion). */
-  expand: () => void
 }
 
 /** Full props of the quick-answers drawer. */
@@ -34,13 +32,14 @@ export type LxQuickDrawerProps = PropsRuntime<'shell.overlay'>
   & PropsLocale<'settings.lxShell'> & LxQuickDrawerInjected
 
 /**
- * Render the quick-answers drawer: the expanded slide-in panel or, while
- * collapsed, the edge grip that expands it back.
+ * Render the quick-answers drawer: the expanded slide-in panel, or nothing
+ * while closed or collapsed (the footer button reopens it; collapse only
+ * hides, never discards the session).
  * @param props - slot runtime share, the drawer store, the locale seat, and
  *   the ask/reset writes.
- * @returns the drawer, its collapsed grip, or nothing while closed.
+ * @returns the drawer or nothing.
  */
-export function LxQuickDrawer({ useStore, actions, t, ask, reset, expand }: LxQuickDrawerProps): ReactNode {
+export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawerProps): ReactNode {
   const mode = useStore(s => s.mode)
   const state = useStore(s => s)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -70,22 +69,7 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset, expand }: LxQu
     }
   }, [state.turns])
 
-  if (mode === 'closed') return null
-
-  if (mode === 'collapsed') {
-    return (
-      <button
-        type="button"
-        className={css.grip}
-        aria-label={t('quick.expand')}
-        title={t('quick.expand')}
-        onClick={() => { expand() }}
-      >
-        <span className={css.gripMark} aria-hidden>»</span>
-        <span className={css.gripLabel}>{t('quick.label')}</span>
-      </button>
-    )
-  }
+  if (mode !== 'expanded') return null
 
   const submit = (): void => {
     const input = inputRef.current
