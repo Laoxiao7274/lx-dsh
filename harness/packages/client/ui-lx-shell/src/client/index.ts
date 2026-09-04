@@ -28,12 +28,16 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { LxShellKey } from './locales.ts'
 import type { LxUpdateStatus } from './store.ts'
 import type { LxHeaderChromeInjected, LxEditorBridge, LxEditorTarget, LxPluginsBridge, LxWindowBridge } from './LxHeaderChrome.tsx'
+import type { LxTodosPanelInjected, TodoAnchorRect } from './LxTodosPanel.tsx'
 import { LxHeaderChrome } from './LxHeaderChrome.tsx'
 import { LxBrandMark, LxBrandName, LxHeroBrandMark } from './LxBrand.tsx'
 import { LxQuickButton } from './LxQuickButton.tsx'
 import { LxQuickDrawer } from './LxQuickDrawer.tsx'
+import { LxTodosEntry } from './LxTodosEntry.tsx'
+import { LxTodosPanel } from './LxTodosPanel.tsx'
 import { LxUpdaterRow, type UpdaterRowInjected } from './LxUpdaterRow.tsx'
 import { createQuickDrawerStore } from './quick-store.ts'
+import { createTodoPanelStore } from './todo-store.ts'
 import { createUpdaterRowStore } from './store.ts'
 import { deriveQuickTurns } from './quick-turns.ts'
 import { en, zh } from './locales.ts'
@@ -45,6 +49,9 @@ export type { LxBrandMarkProps, LxBrandNameProps, LxHeroBrandMarkProps, LxAppVer
 export type { LxQuickButtonProps } from './LxQuickButton.tsx'
 export type { LxQuickDrawerProps, LxQuickDrawerInjected } from './LxQuickDrawer.tsx'
 export type { QuickDrawerState, QuickDrawerActions, QuickTurn } from './quick-store.ts'
+export type { LxTodosEntryProps } from './LxTodosEntry.tsx'
+export type { LxTodosPanelProps, LxTodosPanelInjected, TodoAnchorRect } from './LxTodosPanel.tsx'
+export type { TodoPanelState, TodoPanelActions } from './todo-store.ts'
 export type { LxUpdateButtonProps, LxUpdateButtonInjected } from './LxUpdateButton.tsx'
 export type { LxShellKey } from './locales.ts'
 
@@ -56,6 +63,28 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** The LX-DSH shell rows' copy (updater row + header chrome). */
     'settings.lxShell': LxShellKey
   }
+}
+
+/** One user to-do entry mirrored from the shell's persisted list. */
+export interface LxTodoItem {
+  /** Stable identity for list keys and targeted mutations. */
+  readonly id: string
+  /** The user's text, verbatim. */
+  readonly text: string
+  /** Whether the item is checked off. */
+  readonly done: boolean
+  /** Creation time (epoch ms). */
+  readonly createdAt: number
+  /** Completion time, present once done. */
+  readonly doneAt?: number
+}
+
+/** The shell's to-do list operations (userData-backed, LX-DSH only). */
+export interface LxTodosBridge {
+  get: () => Promise<{ items: LxTodoItem[] }>
+  add: (text: string) => Promise<{ items: LxTodoItem[] }>
+  remove: (id: string) => Promise<{ items: LxTodoItem[] }>
+  toggle: (id: string) => Promise<{ items: LxTodoItem[] }>
 }
 
 /**
@@ -82,6 +111,9 @@ export interface LxShellBridge {
   /** The desktop app's own version (added after the header chrome; optional so
    * an older shell degrades to a version-less footer). */
   appVersion?: () => Promise<string>
+  /** The user's to-do list (added with the sidebar panel; optional so an
+   * older shell degrades to no todos surface). */
+  todos?: LxTodosBridge
 }
 
 /** Read the shell bridge off the window without assuming the desktop shell. */
@@ -100,9 +132,12 @@ function readBridge(): LxShellBridge | undefined {
     ...(plugins === undefined ? {} : { plugins }),
   }
   const withVersion = typeof lx?.appVersion === 'function' ? { ...shell, appVersion: lx.appVersion } : shell
-  return typeof lx?.editor === 'object' && typeof lx.editor.open === 'function'
+  const withEditor = typeof lx?.editor === 'object' && typeof lx.editor.open === 'function'
     ? { ...withVersion, editor: lx.editor }
     : withVersion
+  return typeof lx?.todos === 'object' && typeof lx.todos.get === 'function'
+    ? { ...withEditor, todos: lx.todos }
+    : withEditor
 }
 
 /** Cordis services the registrations need (quick drawer: sessions + workspaces). */
@@ -333,4 +368,61 @@ export function apply(ctx: ClientContext): void {
     name: 'conversation.hero.brand.mark',
     inject: (): { max: () => void } => ({ max: () => { shell.win?.max() } }),
   }, LxHeroBrandMark))
+
+  // User todos: the sidebar-foot entry opens a small anchored panel over the
+  // bridge's persisted list. The bridge member is optional; an older shell
+  // degrades to no todos surface (the registrations below are skipped).
+  if (shell.todos === undefined) return
+  const todos = shell.todos
+  const todoStore = createTodoPanelStore()
+  let todoBound: BoundActions<typeof todoStore> | undefined
+  /** The entry button's rectangle at open time; the panel anchors to it. */
+  let todoAnchor: TodoAnchorRect = { left: 0, top: 0 }
+
+  /** Replace the mirrored list from a bridge reply. */
+  const todoSync = (reply: { items: LxTodoItem[] }): void => {
+    todoBound?.setLoading(false)
+    todoBound?.setItems(reply.items)
+  }
+
+  /** Load the list once per opening panel (the shell caches on its side). */
+  const ensureTodos = (): void => {
+    todoBound?.setLoading(true)
+    void todos.get().then(todoSync).catch(() => { todoBound?.setLoading(false) })
+  }
+
+  /** One bridge mutation whose reply lands in the mirror. */
+  const todoMutate = (run: () => Promise<{ items: LxTodoItem[] }>): void => {
+    void run().then(todoSync).catch(() => { /* the mirror keeps the last good list */ })
+  }
+
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'lx-user-todos',
+    store: todoStore,
+    locale: SETTINGS_NS,
+    inject: (actions: BoundActions<typeof todoStore>): { open: (anchor: TodoAnchorRect) => void } => {
+      todoBound = actions
+      return {
+        open: (anchor) => {
+          todoAnchor = anchor
+          actions.open()
+          ensureTodos()
+        },
+      }
+    },
+  }, LxTodosEntry))
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'lx-user-todos-panel',
+    store: todoStore,
+    locale: SETTINGS_NS,
+    inject: (): LxTodosPanelInjected & { anchor: TodoAnchorRect, close: () => void } => ({
+      add: (text) => { todoMutate(() => todos.add(text)) },
+      remove: (id) => { todoMutate(() => todos.remove(id)) },
+      toggle: (id) => { todoMutate(() => todos.toggle(id)) },
+      anchor: todoAnchor,
+      close: () => { todoBound?.close() },
+    }),
+  }, LxTodosPanel))
 }

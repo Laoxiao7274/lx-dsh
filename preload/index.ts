@@ -64,6 +64,16 @@ contextBridge.exposeInMainWorld('lx', {
     /** Toggle the local backend's LAN bind (restarts the local backend). */
     setLanBind: (enabled: boolean): Promise<any> => ipcRenderer.invoke('lx:settings:lanBind', enabled),
   },
+  todos: {
+    /** The user's persisted to-do list. */
+    get: (): Promise<any> => ipcRenderer.invoke('lx:todos'),
+    /** Add one item from text; returns the post-state list. */
+    add: (text: string): Promise<any> => ipcRenderer.invoke('lx:todos:add', text),
+    /** Remove one item by id; returns the post-state list. */
+    remove: (id: string): Promise<any> => ipcRenderer.invoke('lx:todos:remove', id),
+    /** Toggle one item's done flag; returns the post-state list. */
+    toggle: (id: string): Promise<any> => ipcRenderer.invoke('lx:todos:toggle', id),
+  },
   remote: {
     /** Validate + connect to a remote backend (address + access key), persisting it. */
     connect: (address: string, token: string): Promise<{ ok: boolean; error?: string }> =>

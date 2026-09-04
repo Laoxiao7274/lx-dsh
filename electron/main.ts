@@ -13,6 +13,7 @@ import { ensureDshRuntime } from './dsh-runtime.js';
 import { initUpdater } from './updater.js';
 import { log } from './log.js';
 import { composeRemoteUrl, readSettings, writeSettings } from './settings.js';
+import { mutateTodos, newTodoItem, readTodos } from './todos.js';
 
 // The dsh runtime is built from the in-repo harness/ subtree: in dev
 // the backend runs the workspace build (harness/apps/cli) directly;
@@ -459,6 +460,30 @@ function registerIpc(): void {
       setTimeout(() => startLocalBackend(readSettings()), 300);
     }
     return { ok: true };
+  });
+  // ── User todos (userData/todos.json) ────────────────────────────────────
+  ipcMain.handle('lx:todos', () => {
+    return { items: readTodos() };
+  });
+  ipcMain.handle('lx:todos:add', (_e, text: string) => {
+    const item = newTodoItem(String(text ?? ''));
+    if (item === null) return { items: readTodos() };
+    return { items: mutateTodos(draft => { draft.push(item); return draft }) };
+  });
+  ipcMain.handle('lx:todos:remove', (_e, id: string) => {
+    const target = String(id ?? '');
+    return { items: mutateTodos(draft => draft.filter(item => item.id !== target)) };
+  });
+  ipcMain.handle('lx:todos:toggle', (_e, id: string) => {
+    const target = String(id ?? '');
+    const now = Date.now();
+    return {
+      items: mutateTodos(draft => draft.map(item => {
+        if (item.id !== target) return item;
+        const done = !item.done;
+        return { ...item, done, ...(done ? { doneAt: now } : {}) };
+      })),
+    };
   });
   ipcMain.handle('lx:webview', () => {
     openWebview();

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-LX-DSH 桌面壳的客户端插件：品牌行、更新按钮与弹窗、窗口 chrome、以及快问快答抽屉。所有注册以 `window.lx` 桥存在为前提——在纯浏览器中插件完全惰性。
+LX-DSH 桌面壳的客户端插件：品牌行、更新按钮与弹窗、窗口 chrome、快问快答抽屉、以及待办侧栏入口与面板。所有注册以 `window.lx` 桥存在为前提——在纯浏览器中插件完全惰性。
 
 ## Model Experience
 
@@ -19,6 +19,7 @@ LX-DSH 桌面壳的客户端插件：品牌行、更新按钮与弹窗、窗口 
 - **更新体系**：`LxUpdateButton` + 弹窗显示当前/新版本行、changelog（缺失显示「未提供更新日志」）、实时下载进度与立即安装/稍后按钮；`LxUpdateStatus` store 镜像宿主更新状态（dev 模式 `LX_DSH_FAKE_UPDATE=1` 伪造可用更新做界面验证）。
 - **快问快答抽屉**（`shell.overlay` 槽位 + `sidebar.footer.action` ⚡ 入口）：`LxQuickButton`（`aria-pressed` 镜像抽屉状态）与 `LxQuickDrawer`——420px 左锚定收缩面板，承载针对 `quick-answers` 预设的紧凑问答交流（会话经 `sessions.create` 建立，从不设为 current）。回答走共享的 `MarkdownText` 管线；思考过程走同一 Think 折叠行。抽屉壳两种状态都保持挂载：面板右侧的边缘把手切换收缩，收起时面板滑出屏幕、把手停靠在左缘（面板体移出无障碍树，滚动与草稿状态保留）。根声明 `-webkit-app-region: no-drag`（覆盖在 Session Header 拖拽条上）。`quick-store.ts`（`createQuickDrawerStore`）持有 open 标志、绑定会话 id、turns 与错误。
 - **作用域纪律**：一个 store handle 只挂一个 seat——chromeStore（updater 镜像）由 `sidebar.brand.name` 持有；快问 store 由 `shell.overlay` 持有；`conversation.session.header.utilities` 是会话作用域（另一 store 实例）。
+- **用户待办**（`sidebar.footer.action` 入口 + `shell.overlay` 面板，均以 `todos` 桥成员可选）：`LxTodosEntry`（未完成计数徽章、rail 图标圆，打开时把自身矩形传给面板）与 `LxTodosPanel`（锚定弹层：回车添加、勾选完成、删除、点外/Escape 关闭）。列表持久化在壳的 `userData/todos.json`（桥的 `get`/`add`/`remove`/`toggle` 返回写后列表）；`todo-store.ts`（`createTodoPanelStore`）做渲染镜像。无 `todos` 成员的旧壳不注册任何东西。
 
 桥在 Cordis 拓扑之外，因此没有服务缝：订阅是 apply 体持有的普通函数，随插件 fiber 一起销毁。
 

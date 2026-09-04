@@ -40,6 +40,13 @@ export const zh = {
   'quick.copy': '复制',
   'quick.copied': '已复制',
   'quick.footnotes': '脚注',
+  'todo.title': '待办',
+  'todo.placeholder': '记一件事，回车添加',
+  'todo.add': '添加',
+  'todo.toggle': '完成/取消完成',
+  'todo.remove': '删除',
+  'todo.empty': '还没有待办事项',
+  'todo.loading': '加载中…',
 } satisfies Record<string, string>
 
 /** The settings.lxShell namespace key union. */
@@ -85,4 +92,11 @@ export const en = {
   'quick.copy': 'Copy',
   'quick.copied': 'Copied',
   'quick.footnotes': 'Footnotes',
+  'todo.title': 'Todos',
+  'todo.placeholder': 'Note something, Enter to add',
+  'todo.add': 'Add',
+  'todo.toggle': 'Toggle done',
+  'todo.remove': 'Remove',
+  'todo.empty': 'Nothing to do yet',
+  'todo.loading': 'Loading…',
 } satisfies Record<LxShellKey, string>
