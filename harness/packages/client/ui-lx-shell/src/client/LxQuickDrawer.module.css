@@ -27,6 +27,9 @@
      the scrolling .list child. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  /* Pre-promoted compositing layer: the gsap slide is a pure transform, so
+   * the drawer (with its shadow) never repaints per frame. */
+  will-change: transform;
 }
 
 .header {

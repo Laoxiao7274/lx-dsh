@@ -17,6 +17,9 @@
   border-left: 0.5px solid var(--dsw-alias-border-l2);
   box-shadow: -10px 0 28px rgba(15, 17, 21, 0.14);
   z-index: 60;
+  /* Pre-promoted compositing layer: the gsap slide is a pure transform, so
+   * the panel (with its shadow) never repaints per frame. */
+  will-change: transform;
 }
 
 .head {

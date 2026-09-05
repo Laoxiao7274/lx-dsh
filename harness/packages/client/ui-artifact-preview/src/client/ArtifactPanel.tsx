@@ -52,11 +52,13 @@ export function ArtifactPanel({
   const activeKey = useStore(s => s.activeKey)
   const reads = useStore(s => s.reads)
   const labels = useMemo(() => markdownLabels(t), [markdownLabels, t])
-  // Slide choreography (gsap): the panel enters from the right and the page
-  // body's right padding tweens in step (a raw class swap jumps the whole
-  // layout, which reads as jank). The exit tween defers the unmount so the
-  // collapse slides out instead of blinking away. The mutex guarantees this
-  // panel is the only body-padding writer.
+  // Slide choreography (gsap): the panel itself only ever animates transform
+  // (gsap's force3D promotes it to its own compositing layer, so no repaint
+  // per frame). The body split is NOT tweened: a padding animation reflows
+  // the whole page every frame and that is the jank — the split lands in one
+  // step when the slide starts, and the panel slides into the freed space;
+  // on collapse it clears once the slide finishes. The exit tween defers the
+  // unmount. The mutex guarantees this panel is the only body-padding writer.
   const panelRef = useRef<HTMLElement | null>(null)
   const [shown, setShown] = useState(mode === 'expanded')
   useLayoutEffect(() => {
@@ -65,17 +67,14 @@ export function ArtifactPanel({
   useLayoutEffect(() => {
     if (typeof document === 'undefined') return
     if (mode === 'expanded') {
-      if (!motionAllowed()) {
-        document.body.style.paddingRight = '460px'
-        return
-      }
+      document.body.style.paddingRight = '460px'
+      if (!motionAllowed()) return
       const ctx = gsap.context(() => {
         gsap.fromTo(panelRef.current, { xPercent: 100 }, { xPercent: 0, duration: 0.26, ease: 'power3.out' })
-        gsap.fromTo(document.body, { paddingRight: 0 }, { paddingRight: 460, duration: 0.26, ease: 'power3.out' })
       })
       return () => { ctx.revert() }
     }
-    // Collapsed: tween out, then drop the padding and let the unmount land.
+    // Collapsed: slide out, then drop the padding and let the unmount land.
     const settle = (): void => {
       document.body.style.paddingRight = ''
       setShown(false)
@@ -84,7 +83,6 @@ export function ArtifactPanel({
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ onComplete: settle })
       tl.to(panelRef.current, { xPercent: 100, duration: 0.2, ease: 'power2.in' })
-      tl.to(document.body, { paddingRight: 0, duration: 0.2, ease: 'power2.in' }, 0)
     })
     return () => { ctx.revert() }
   }, [mode])
