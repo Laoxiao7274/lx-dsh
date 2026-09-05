@@ -1,8 +1,9 @@
-/* Artifact-preview side panel: fixed right, true split through the body
- * right padding the panel component tweens with gsap (see ArtifactPanel.tsx).
- * Media stages are dark (same family as the row cards); text views scroll
- * inside the panel body. Collapsed hides the panel entirely — the row's
- * artifact cards reopen it. */
+/* Artifact-preview side panel: a fixed right overlay covering the
+ * conversation's right edge (same lane as the quick drawer — the transcript
+ * never reflows, because a width change re-breaks every text line). Media
+ * stages are dark (same family as the row cards); text views scroll inside
+ * the panel body. Collapsed hides the panel entirely — the row's artifact
+ * cards reopen it. */
 
 .panel {
   position: fixed;

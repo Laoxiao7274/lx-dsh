@@ -1,11 +1,13 @@
 /**
- * The artifact-preview side panel: a fixed right-hand panel with its own
+ * The artifact-preview side panel: a fixed right-hand overlay with its own
  * tab strip (one tab per opened artifact), a toolbar (reload, external
  * open, collapse), a kind-routed body (markdown, code, csv, json, image,
- * video, audio, web iframe, binary fallback), and a status line. The
- * expand/collapse pair slides (gsap) with the page body's right padding
- * tweened in step; the exit tween defers the unmount. Collapsed hides the
- * panel entirely — the row's artifact cards reopen it.
+ * video, audio, web iframe, binary fallback), and a status line. It covers
+ * the conversation's right edge like the quick drawer (the transcript never
+ * reflows — a width change re-breaks every line, which reads as violent
+ * jank). The expand/collapse pair slides (gsap) with the exit tween
+ * deferring the unmount. Collapsed hides the panel entirely — the row's
+ * artifact cards reopen it.
  */
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -52,13 +54,11 @@ export function ArtifactPanel({
   const activeKey = useStore(s => s.activeKey)
   const reads = useStore(s => s.reads)
   const labels = useMemo(() => markdownLabels(t), [markdownLabels, t])
-  // Slide choreography (gsap): the panel itself only ever animates transform
-  // (gsap's force3D promotes it to its own compositing layer, so no repaint
-  // per frame). The body split is NOT tweened: a padding animation reflows
-  // the whole page every frame and that is the jank — the split lands in one
-  // step when the slide starts, and the panel slides into the freed space;
-  // on collapse it clears once the slide finishes. The exit tween defers the
-  // unmount. The mutex guarantees this panel is the only body-padding writer.
+  // Slide choreography (gsap): the panel is an overlay — the conversation
+  // column never reflows (a width change re-breaks every text line in the
+  // transcript, which is both jank and visually violent). The slide is a
+  // pure transform on the pre-promoted compositing layer; the exit tween
+  // defers the unmount.
   const panelRef = useRef<HTMLElement | null>(null)
   const [shown, setShown] = useState(mode === 'expanded')
   useLayoutEffect(() => {
@@ -67,18 +67,14 @@ export function ArtifactPanel({
   useLayoutEffect(() => {
     if (typeof document === 'undefined') return
     if (mode === 'expanded') {
-      document.body.style.paddingRight = '460px'
       if (!motionAllowed()) return
       const ctx = gsap.context(() => {
         gsap.fromTo(panelRef.current, { xPercent: 100 }, { xPercent: 0, duration: 0.26, ease: 'power3.out' })
       })
       return () => { ctx.revert() }
     }
-    // Collapsed: slide out, then drop the padding and let the unmount land.
-    const settle = (): void => {
-      document.body.style.paddingRight = ''
-      setShown(false)
-    }
+    // Collapsed: slide out, then let the unmount land.
+    const settle = (): void => { setShown(false) }
     if (!motionAllowed() || panelRef.current === null) { settle(); return }
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ onComplete: settle })

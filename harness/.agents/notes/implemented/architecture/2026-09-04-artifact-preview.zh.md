@@ -12,7 +12,7 @@ Status: implemented
 
 `session/readWorkspaceFile`（packages/api/session-controller）按调用方选择的交付形式读取一个 Session 工作区文件：`text` 返回整文件 UTF-8，`bytes` 返回整文件 base64 + 按扩展名推导的 media type。字节上限是部署 Config（`textReadCapBytes` 默认 2 MiB；`bytesReadCapBytes` 默认 32 MiB）。失败带稳定错误码 `session/file-not-found` 与 `session/file-too-large`；既有的 `workspace/*` 错误码属于 Workspace Controller 且声明 `{workspaceId}` details，因此 session 域用自己的文件错误码。信任模型沿用 `openWorkspacePath` —— 它已经把客户端解析的工作区路径交给宿主。
 
-`ui-artifact-preview`（packages/client）渲染两道产物行（媒体道 视频 > 图片 > 音频，暗底卡片 + 缓存的图片缩略图；文件道 网页 > 文档 > 数据 > 代码 > 二进制，紧凑 chips），以 priority -100 注册进 `conversation.chat.turnTail` 链，在两包同时组合时遮蔽官方 `ui-deliverables` chips 行。点击任一卡片在 `shell.overlay` 面板中打开该产物：自带标签条（打开/聚焦/关闭；关闭活动页落到右侧邻居；全关出空态）、工具条（重读、系统打开、关闭）、按类型路由的内容体（MarkdownText、CodeBlock、JSON 美化、手写 RFC 4180 CSV 表格、棋盘底图片、blob URL 的视频/音频暗舞台、`sandbox="allow-scripts"` iframe 的 HTML、二进制回退到复制路径）和状态行。面板通过组件内 effect 按 open 标志给页面 body 留出等宽空隙。
+`ui-artifact-preview`（packages/client）渲染两道产物行（媒体道 视频 > 图片 > 音频，暗底卡片 + 缓存的图片缩略图；文件道 网页 > 文档 > 数据 > 代码 > 二进制，紧凑 chips），以 priority -100 注册进 `conversation.chat.turnTail` 链，在两包同时组合时遮蔽官方 `ui-deliverables` chips 行。点击任一卡片在 `shell.overlay` 面板中打开该产物：自带标签条（打开/聚焦/关闭；关闭活动页落到右侧邻居；全关出空态）、工具条（重读、系统打开、收缩）、按类型路由的内容体（MarkdownText、CodeBlock、JSON 美化、手写 RFC 4180 CSV 表格、棋盘底图片、blob URL 的视频/音频暗舞台、`sandbox="allow-scripts"` iframe 的 HTML、二进制回退到复制路径）和状态行。面板与快问快答同为右缘覆盖层——对话列从不重排（宽度变化会把转录里每一行文字重新断行，观感即卡顿）；展开/收缩对为 gsap 滑动（预提升合成层上的纯 transform；出场补间延迟卸载），window 级 `lx-side-panel` 互斥保证快问快答与本面板不同时展开。
 
 支撑该形态的接缝选择：
 

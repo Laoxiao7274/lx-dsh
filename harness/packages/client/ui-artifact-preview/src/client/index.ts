@@ -42,7 +42,7 @@ export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.session'
 type PanelActions = BoundActions<ReturnType<typeof createArtifactPanelStore>>
 
 /**
- * The side-panel mutex event: each right-anchored panel announces its own
+ * The side-panel mutex event: each right-anchored overlay announces its own
  * expansion and collapses when another announces one. A window-level
  * convention (no cross-package state) — each panel's own entry reopens it,
  * so a lost announcement costs nothing.

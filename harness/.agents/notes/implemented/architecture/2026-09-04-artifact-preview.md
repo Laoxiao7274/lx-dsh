@@ -35,12 +35,17 @@ official `ui-deliverables` chips row while both are composed. Clicking any
 card opens the artifact in a `shell.overlay` panel: its own tab strip
 (open/focus/close; closing the active tab falls to the right neighbor;
 closing the last leaves the empty state), a toolbar (reload, system open,
-close), a kind-routed body (MarkdownText, CodeBlock, pretty JSON, a
+collapse), a kind-routed body (MarkdownText, CodeBlock, pretty JSON, a
 hand-rolled RFC 4180 CSV table, image on a checkerboard stage, video and
 audio on the dark stage via blob URLs, HTML through a
 `sandbox="allow-scripts"` iframe, binary falls back to copy-path), and a
-status line. The panel frees its width from the page body through a
-component-local effect on the open flag.
+status line. The panel is a right-edge overlay like the quick drawer —
+the conversation column never reflows (a width change re-breaks every
+text line in the transcript, which reads as jank); the expand/collapse
+pair slides through gsap (pure transform on a pre-promoted compositing
+layer; the exit tween defers the unmount), and a window-level
+`lx-side-panel` mutex keeps the quick drawer and this panel from
+expanding at once.
 
 Seam choices behind that shape:
 
