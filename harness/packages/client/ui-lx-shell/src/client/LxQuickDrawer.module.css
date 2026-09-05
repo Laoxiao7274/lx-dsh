@@ -1,6 +1,7 @@
 /* Quick-answers drawer: right-anchored slide-in panel over the conversation
  * column. Fixed width, full height below any app inset; the overlay layer's
- * pointer-events pass-through keeps the rest of the shell interactive. */
+ * pointer-events pass-through keeps the rest of the shell interactive. The
+ * expand/collapse slide is gsap-driven (see LxQuickDrawer.tsx). */
 
 .drawer {
   position: absolute;
@@ -26,18 +27,6 @@
      the scrolling .list child. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  animation: quick-drawer-in 180ms ease;
-}
-
-@keyframes quick-drawer-in {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .drawer {
-    animation: none;
-  }
 }
 
 .header {

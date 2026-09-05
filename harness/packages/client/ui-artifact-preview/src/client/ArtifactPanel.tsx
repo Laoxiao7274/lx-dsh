@@ -1,15 +1,16 @@
 /**
  * The artifact-preview side panel: a fixed right-hand panel with its own
  * tab strip (one tab per opened artifact), a toolbar (reload, external
- * open, close), a kind-routed body (markdown, code, csv, json, image,
- * video, audio, web iframe, binary fallback), and a status line. While
- * open the panel frees its width from the page body (true split, no
- * overlap); the padding follows the open flag through this component's
- * own effect and always restores on unmount.
+ * open, collapse), a kind-routed body (markdown, code, csv, json, image,
+ * video, audio, web iframe, binary fallback), and a status line. The
+ * expand/collapse pair slides (gsap) with the page body's right padding
+ * tweened in step; the exit tween defers the unmount. Collapsed hides the
+ * panel entirely — the row's artifact cards reopen it.
  */
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { CodeBlock, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import { CodeBlock, MarkdownText, motionAllowed, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import gsap from 'gsap'
 import {
   artifactTabKey, type ArtifactRead, type ArtifactTab, createArtifactPanelStore,
 } from './artifact-store.ts'
@@ -51,16 +52,47 @@ export function ArtifactPanel({
   const activeKey = useStore(s => s.activeKey)
   const reads = useStore(s => s.reads)
   const labels = useMemo(() => markdownLabels(t), [markdownLabels, t])
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    document.body.classList.toggle('lx-apv-panel', mode === 'expanded')
-    return () => { document.body.classList.remove('lx-apv-panel') }
+  // Slide choreography (gsap): the panel enters from the right and the page
+  // body's right padding tweens in step (a raw class swap jumps the whole
+  // layout, which reads as jank). The exit tween defers the unmount so the
+  // collapse slides out instead of blinking away. The mutex guarantees this
+  // panel is the only body-padding writer.
+  const panelRef = useRef<HTMLElement | null>(null)
+  const [shown, setShown] = useState(mode === 'expanded')
+  useLayoutEffect(() => {
+    if (mode === 'expanded') setShown(true)
   }, [mode])
-  if (mode !== 'expanded') return null
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return
+    if (mode === 'expanded') {
+      if (!motionAllowed()) {
+        document.body.style.paddingRight = '460px'
+        return
+      }
+      const ctx = gsap.context(() => {
+        gsap.fromTo(panelRef.current, { xPercent: 100 }, { xPercent: 0, duration: 0.26, ease: 'power3.out' })
+        gsap.fromTo(document.body, { paddingRight: 0 }, { paddingRight: 460, duration: 0.26, ease: 'power3.out' })
+      })
+      return () => { ctx.revert() }
+    }
+    // Collapsed: tween out, then drop the padding and let the unmount land.
+    const settle = (): void => {
+      document.body.style.paddingRight = ''
+      setShown(false)
+    }
+    if (!motionAllowed() || panelRef.current === null) { settle(); return }
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ onComplete: settle })
+      tl.to(panelRef.current, { xPercent: 100, duration: 0.2, ease: 'power2.in' })
+      tl.to(document.body, { paddingRight: 0, duration: 0.2, ease: 'power2.in' }, 0)
+    })
+    return () => { ctx.revert() }
+  }, [mode])
+  if (!shown) return null
   const active = tabs.find(tab => artifactTabKey(tab.sessionId, tab.path) === activeKey)
   const read = active === undefined ? undefined : reads[artifactTabKey(active.sessionId, active.path)]
   return (
-    <aside className={css.panel} data-open>
+    <aside ref={panelRef} className={css.panel} data-open>
       <div className={css.head}>
         <span className={css.title}>{t('panel.title')}</span>
         <span style={{ flex: 1 }} />

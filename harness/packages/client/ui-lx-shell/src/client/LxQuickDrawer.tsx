@@ -7,13 +7,14 @@
  * rides the same Think disclosure row the chat uses, so the drawer keeps
  * the chat's presentation (thinking, tool activity, markdown typography).
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   DisclosureRow, IconBoltOutline16, IconRefreshOutline14, IconSearchOutline16,
-  IconThinkOutline14, MarkdownText, useStreamReveal,
+  IconThinkOutline14, MarkdownText, motionAllowed, useStreamReveal,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import gsap from 'gsap'
 import css from './LxQuickDrawer.module.css'
 import type { QuickTurn } from './quick-store.ts'
 import type { createQuickDrawerStore } from './quick-store.ts'
@@ -34,7 +35,8 @@ export type LxQuickDrawerProps = PropsRuntime<'shell.overlay'>
 /**
  * Render the quick-answers drawer: the expanded slide-in panel, or nothing
  * while closed or collapsed (the footer button reopens it; collapse only
- * hides, never discards the session).
+ * hides, never discards the session). The expand/collapse pair slides
+ * (gsap) with the exit tween deferring the unmount.
  * @param props - slot runtime share, the drawer store, the locale seat, and
  *   the ask/reset writes.
  * @returns the drawer or nothing.
@@ -44,6 +46,8 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
   const state = useStore(s => s)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const drawerRef = useRef<HTMLDivElement | null>(null)
+  const [shown, setShown] = useState(mode === 'expanded')
   const lastTurnCount = useRef(0)
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's streaming cache every chunk.
@@ -51,6 +55,28 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
     code: { copyLabel: t('quick.copy'), copiedLabel: t('quick.copied') },
     footnotes: t('quick.footnotes'),
   }), [t])
+
+  // Slide choreography (gsap): enter from the right; exit slides out before
+  // the unmount lands. Reduced motion swaps instantly.
+  useLayoutEffect(() => {
+    if (mode === 'expanded') setShown(true)
+  }, [mode])
+  useLayoutEffect(() => {
+    if (mode === 'expanded') {
+      if (!motionAllowed()) return
+      const ctx = gsap.context(() => {
+        gsap.fromTo(drawerRef.current, { xPercent: 100 }, { xPercent: 0, duration: 0.26, ease: 'power3.out' })
+      })
+      return () => { ctx.revert() }
+    }
+    const settle = (): void => { setShown(false) }
+    if (!motionAllowed() || drawerRef.current === null) { settle(); return }
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ onComplete: settle })
+      tl.to(drawerRef.current, { xPercent: 100, duration: 0.2, ease: 'power2.in' })
+    })
+    return () => { ctx.revert() }
+  }, [mode])
 
   // Focus the composer on expand.
   useEffect(() => {
@@ -69,7 +95,7 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
     }
   }, [state.turns])
 
-  if (mode !== 'expanded') return null
+  if (!shown) return null
 
   const submit = (): void => {
     const input = inputRef.current
@@ -81,7 +107,7 @@ export function LxQuickDrawer({ useStore, actions, t, ask, reset }: LxQuickDrawe
   }
 
   return (
-    <div className={css.drawer} role="complementary" aria-label={t('quick.label')}>
+    <div ref={drawerRef} className={css.drawer} role="complementary" aria-label={t('quick.label')}>
       <div className={css.header}>
         <IconBoltOutline16 size={16} className={css.icon} />
         <span className={css.title}>{t('quick.label')}</span>

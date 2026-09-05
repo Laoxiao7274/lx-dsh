@@ -1936,6 +1936,10 @@ importers:
         version: 18.3.1
 
   packages/client/ui-artifact-preview:
+    dependencies:
+      gsap:
+        specifier: ^3.13.0
+        version: 3.15.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -1958,6 +1962,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-conversation':
         specifier: workspace:^
         version: link:../ui-conversation
+      '@deepseek-ai/dsh-client-ui-deliverables':
+        specifier: workspace:^
+        version: link:../ui-deliverables
       '@deepseek-ai/dsh-client-ui-layout':
         specifier: workspace:^
         version: link:../ui-layout
@@ -2638,6 +2645,10 @@ importers:
         version: 18.3.1
 
   packages/client/ui-lx-shell:
+    dependencies:
+      gsap:
+        specifier: ^3.13.0
+        version: 3.15.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

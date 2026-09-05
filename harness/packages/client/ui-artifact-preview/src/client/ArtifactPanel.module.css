@@ -1,14 +1,8 @@
-/* Artifact-preview side panel: fixed right, true split through the
- * lx-apv-panel body class the panel component owns. Media stages are dark
- * (same family as the row cards); text views scroll inside the panel body.
- * Collapsed hides the panel entirely — the row's artifact cards reopen it. */
-
-/* The panel frees its width from the page body while expanded (class toggle,
- * not a style write: the quick drawer owns a sibling class of its own and a
- * raw write from either would clobber the other on overlap). */
-:global(body.lx-apv-panel) {
-  padding-right: 460px;
-}
+/* Artifact-preview side panel: fixed right, true split through the body
+ * right padding the panel component tweens with gsap (see ArtifactPanel.tsx).
+ * Media stages are dark (same family as the row cards); text views scroll
+ * inside the panel body. Collapsed hides the panel entirely — the row's
+ * artifact cards reopen it. */
 
 .panel {
   position: fixed;
