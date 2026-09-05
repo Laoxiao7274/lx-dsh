@@ -21,8 +21,9 @@ if (!existsSync(join(src, 'LX-DSH.exe'))) {
   console.error('[make-portable] dist/win-unpacked/LX-DSH.exe missing');
   process.exit(1);
 }
-if (!existsSync(join(src, 'resources', 'dsh.zip'))) {
-  console.error('[make-portable] resources/dsh.zip missing — run npm run assemble before electron-builder');
+// Since 0.3.2 the runtime ships as a plain directory (resources/dsh), not a zip.
+if (!existsSync(join(src, 'resources', 'dsh'))) {
+  console.error('[make-portable] resources/dsh missing — run npm run assemble before electron-builder');
   process.exit(1);
 }
 
