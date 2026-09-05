@@ -32,6 +32,19 @@ exports.default = async function afterPack(context) {
   if (existsSync(legacy)) {
     throw new Error('afterPack: shipped runtime still carries dsh-host-apiproxy — assemble from the merged harness');
   }
+  // The vendored web-search bundle ships handwritten lib/ JS as its source;
+  // a tree without it crashes every fresh install's backend (the profile
+  // template links it from the runtime's node_modules).
+  const webSearch = join(dest, 'node_modules', '@laoxiao7274', 'dsh-web-search', 'lib', 'index.js');
+  if (!existsSync(webSearch)) {
+    throw new Error('afterPack: shipped runtime is missing @laoxiao7274/dsh-web-search/lib — '
+      + 'restore harness/plugins/dsh-web-search/lib and re-run assemble');
+  }
+  const modlens = join(dest, 'node_modules', '@liustack', 'modlens', 'dsh', 'index.js');
+  if (!existsSync(modlens)) {
+    throw new Error('afterPack: shipped runtime is missing @liustack/modlens — re-run assemble');
+  }
+
   const pnpmStore = join(dest, 'node_modules', '.pnpm');
   if (!existsSync(pnpmStore)) {
     throw new Error('afterPack: shipped runtime lost its pnpm package layout — assemble from the merged harness');

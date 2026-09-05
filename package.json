@@ -1,7 +1,7 @@
 {
   "name": "lx-dsh",
   "productName": "LX-DSH",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "type": "commonjs",
   "description": "LX-DSH — native desktop client for DeepSeek Harness (dsh web)",
@@ -38,6 +38,7 @@
     "files": [
       "dist-electron/**",
       "ui/dist/**",
+      "build/icon.png",
       "package.json"
     ],
     "win": {

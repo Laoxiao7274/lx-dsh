@@ -2,6 +2,8 @@ CLAUDE.local.md
 .env
 node_modules/
 lib/
+# The vendored first-party plugin ships handwritten lib/ JS as its source.
+!plugins/dsh-web-search/lib/
 *.tsbuildinfo
 pnpm-debug.log
 .pnpm-store/
